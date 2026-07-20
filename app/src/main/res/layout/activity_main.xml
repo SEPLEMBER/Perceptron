@@ -1,45 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#0A0A0A"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp"
-    android:background="#0A0A0A">
+    android:gravity="center">
 
-    <Button
-        android:id="@+id/btn_metadata"
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/textPerceptron"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Metadata"
-        android:textColor="#000000"
-        android:backgroundTint="#C0C0C0"
-        android:layout_marginBottom="12dp"/>
-
-    <Button
-        android:id="@+id/btn_order"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Order"
-        android:textColor="#000000"
-        android:backgroundTint="#C0C0C0"
-        android:layout_marginBottom="12dp"/>
-
-    <Button
-        android:id="@+id/btn_edit"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Edit chapter"
-        android:textColor="#000000"
-        android:backgroundTint="#C0C0C0"
-        android:layout_marginBottom="12dp"/>
-
-    <Button
-        android:id="@+id/btn_settings"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Settings"
-        android:textColor="#000000"
-        android:backgroundTint="#C0C0C0"/>
+        android:text="Perceptron"
+        android:textColor="#FFFFFF"
+        android:textSize="48sp"
+        android:textStyle="bold" />
 </LinearLayout>
