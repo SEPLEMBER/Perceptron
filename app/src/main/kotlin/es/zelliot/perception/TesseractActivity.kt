@@ -39,19 +39,22 @@ class TesseractActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTesseractBinding
     private lateinit var highlighter: TesseractHighlighter
     
+    // Coroutine scope tied to the Activity lifecycle for managing asynchronous tasks
     private val activityScope = CoroutineScope(Dispatchers.Main + Job())
     private var currentFileUri: Uri? = null
 
+    // Activity Result Launcher for picking a file from the device storage
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             currentFileUri = uri
             try {
+                // Request persistent read permission so the file can be accessed later (e.g., via shortcut)
                 contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (e: SecurityException) {
-                // Игнорируем
+                // Ignore permission errors gracefully
             }
             loadFileContent(uri)
         }
@@ -60,6 +63,7 @@ class TesseractActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Prevent screenshots and screen recording for security/privacy
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
@@ -74,11 +78,13 @@ class TesseractActivity : AppCompatActivity() {
         checkIntentForShortcut()
     }
 
+    // Initializes the custom syntax highlighter and attaches it to the script editor
     private fun setupSyntaxHighlighting() {
         highlighter = TesseractHighlighter(binding.etScript, lifecycle)
         binding.etScript.addTextChangedListener(highlighter)
     }
 
+    // Configures click listeners for all primary action buttons in the UI
     private fun setupButtons() {
         binding.btnClear.setOnClickListener {
             binding.etScript.text.clear()
@@ -91,11 +97,13 @@ class TesseractActivity : AppCompatActivity() {
         }
 
         binding.btnStop.setOnClickListener {
+            // Cancel all running coroutines in the activity scope to stop execution immediately
             activityScope.coroutineContext[Job]?.cancelChildren()
             showToast(getString(R.string.toast_stopped))
         }
 
         binding.btnOpen.setOnClickListener {
+            // Launch the system file picker for text or generic files
             openFileLauncher.launch(arrayOf("*/*", "text/plain", "application/octet-stream"))
         }
 
@@ -113,6 +121,7 @@ class TesseractActivity : AppCompatActivity() {
         }
     }
 
+    // Sets up interactions for the result overlay (closing and copying to clipboard)
     private fun setupOverlays() {
         binding.btnCloseResult.setOnClickListener { hideResult() }
         binding.dimView.setOnClickListener { hideResult() }
@@ -125,6 +134,7 @@ class TesseractActivity : AppCompatActivity() {
         }
     }
 
+    // Displays the result overlay with a smooth fade-in and scale animation
     private fun showResult(text: String) {
         binding.tvResultContent.text = text
         binding.tvResultContent.scrollTo(0, 0)
@@ -145,6 +155,7 @@ class TesseractActivity : AppCompatActivity() {
             .start()
     }
 
+    // Hides the result overlay with a smooth fade-out and scale-down animation
     private fun hideResult() {
         binding.dimView.animate().alpha(0f).setDuration(150).withEndAction {
             binding.dimView.visibility = View.GONE
@@ -157,14 +168,17 @@ class TesseractActivity : AppCompatActivity() {
             .setDuration(150)
             .withEndAction {
                 binding.overlayResult.visibility = View.GONE
+                // Reset properties for the next time it's shown
                 binding.overlayResult.alpha = 1f
                 binding.overlayResult.scaleY = 1f
                 binding.overlayResult.scaleX = 1f
             }.start()
     }
 
+    // Data class representing a configurable constant extracted from the script
     data class ConstantDef(val name: String, val defaultValue: Double, val matchRange: IntRange)
 
+    // Parses the script to find variable declarations (e.g., "val x = 10") for parameter injection
     private fun extractConstants(script: String): List<ConstantDef> {
         val constants = mutableListOf<ConstantDef>()
         val regex = Regex("""val\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
@@ -176,6 +190,7 @@ class TesseractActivity : AppCompatActivity() {
         return constants
     }
 
+    // Reads the file content from the given URI and decides whether to show the parameters dialog
     private fun loadFileContent(uri: Uri) {
         try {
             val inputStream = contentResolver.openInputStream(uri) ?: return
@@ -184,6 +199,7 @@ class TesseractActivity : AppCompatActivity() {
             
             val constants = extractConstants(content)
             if (constants.isNotEmpty()) {
+                // If configurable constants are found, prompt the user to edit them before running
                 showConstantsDialog(constants, content)
             } else {
                 binding.etScript.setText(content)
@@ -194,6 +210,7 @@ class TesseractActivity : AppCompatActivity() {
         }
     }
 
+    // Displays a dialog allowing the user to modify extracted constants before script execution
     private fun showConstantsDialog(constants: List<ConstantDef>, originalScript: String) {
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         val builder = AlertDialog.Builder(darkContext)
@@ -222,9 +239,10 @@ class TesseractActivity : AppCompatActivity() {
                 setTextColor(Color.parseColor("#00E676"))
                 setHintTextColor(Color.GRAY)
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFAA00"))
+                
+                // Disable text selection and copy/paste menus to prevent UI interference
                 setLongClickable(false)
                 setTextIsSelectable(false)
-                
                 val actionModeCallback = object : ActionMode.Callback {
                     override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
                     override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
@@ -249,6 +267,7 @@ class TesseractActivity : AppCompatActivity() {
         builder.setView(scrollView)
 
         builder.setPositiveButton(getString(R.string.btn_execute)) { _, _ ->
+            // Rebuild the script with the user-modified constant values
             val regex = Regex("""val\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
             val sb = StringBuilder()
             var lastEnd = 0
@@ -268,12 +287,14 @@ class TesseractActivity : AppCompatActivity() {
         }
         
         builder.setNegativeButton(getString(R.string.dialog_cancel)) { _, _ ->
+            // Load the original script without modifications if cancelled
             binding.etScript.setText(originalScript)
         }
         
         builder.show()
     }
 
+    // Prompts the user for a name and creates a home screen shortcut for the current script
     private fun showShortcutDialog() {
         if (currentFileUri == null) {
             showToast(getString(R.string.toast_open_file_first))
@@ -294,9 +315,10 @@ class TesseractActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#00E676"))
             setHintTextColor(Color.GRAY)
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFAA00"))
+            
+            // Disable text selection and copy/paste menus
             setLongClickable(false)
             setTextIsSelectable(false)
-            
             val actionModeCallback = object : ActionMode.Callback {
                 override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
                 override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
@@ -322,6 +344,7 @@ class TesseractActivity : AppCompatActivity() {
         builder.show()
     }
 
+    // Uses ShortcutManagerCompat to pin a shortcut that launches this activity with the script URI
     private fun createShortcut(title: String) {
         val intent = Intent(this, TesseractActivity::class.java).apply {
             action = "es.zelliot.perceptron.ACTION_RUN_SHORTCUT"
@@ -339,11 +362,14 @@ class TesseractActivity : AppCompatActivity() {
         showToast(getString(R.string.toast_shortcut_created, title))
     }
 
+    // Main execution logic: evaluates system commands first, then falls back to script evaluation
     private fun executeScript(script: String) {
+        // Cancel any previously running executions to prevent overlapping runs
         activityScope.coroutineContext[Job]?.cancelChildren()
         
         activityScope.launch {
             try {
+                // 1. Try to evaluate as a system command (e.g., CLS, EXIT) with a 3-second timeout
                 val systemResult = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
@@ -364,10 +390,11 @@ class TesseractActivity : AppCompatActivity() {
                     return@launch
                 }
 
+                // 2. If not a system command, evaluate as a Perceptron script with a 3-second timeout
                 val result = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
-                            // Обратите внимание: добавлен параметр 'this@TesseractActivity' (Context)
+                            // Pass the Activity context to the engine for potential UI interactions
                             TesseractEngine1.evaluate(this@TesseractActivity, script, emptyMap())
                         }
                     }
@@ -375,6 +402,7 @@ class TesseractActivity : AppCompatActivity() {
                     getString(R.string.error_timeout_script)
                 }
 
+                // 3. Handle explicit exit commands with optional delay
                 if (result.startsWith("__TESSERACT_EXIT__:")) {
                     val firstLine = result.substringBefore("\n")
                     val actualOutput = result.substringAfter("\n", "").trim()
@@ -396,12 +424,15 @@ class TesseractActivity : AppCompatActivity() {
                 }
 
             } catch (e: TesseractOpenActCommand) {
+                // 4. Handle custom command to open external apps or activities
                 val target = e.packageName
                 try {
                     val intent: Intent? = if (target.contains("/")) {
+                        // Format: "package/class" for specific Activity
                         val parts = target.split("/", limit = 2)
                         Intent().setClassName(parts[0], parts[1])
                     } else {
+                        // Format: "package" for app launch
                         packageManager.getLaunchIntentForPackage(target)
                     }
 
@@ -416,19 +447,21 @@ class TesseractActivity : AppCompatActivity() {
                     showResult(getString(R.string.error_open_target_exception, target, ex.message ?: "Unknown"))
                 }
             } catch (e: CancellationException) {
-                // Нормальное поведение при отмене корутины
+                // Expected behavior when the user presses the Stop button or a timeout occurs
             } catch (e: Exception) {
                 showResult(getString(R.string.error_generic, e.message ?: "Unknown"))
             }
         }
     }
 
+    // Checks if the activity was launched via a home screen shortcut and auto-executes the script
     private fun checkIntentForShortcut() {
         if (intent.action == "es.zelliot.perceptron.ACTION_RUN_SHORTCUT") {
             val uriString = intent.getStringExtra("SCRIPT_URI")
             if (uriString != null) {
                 currentFileUri = Uri.parse(uriString)
                 loadFileContent(currentFileUri!!)
+                // Delay execution slightly to ensure the UI and file loading are fully ready
                 Handler(Looper.getMainLooper()).postDelayed({
                     executeScript(binding.etScript.text.toString())
                 }, 500)
@@ -436,6 +469,7 @@ class TesseractActivity : AppCompatActivity() {
         }
     }
 
+    // Helper function to display short toast messages
     private fun showToast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
@@ -446,17 +480,20 @@ class TesseractActivity : AppCompatActivity() {
             binding.etScript.removeTextChangedListener(highlighter)
             highlighter.cleanup()
         }
+        // Cancel all coroutines to prevent memory leaks
         activityScope.cancel()
     }
 
     /**
-     * Безопасная подсветка синтаксиса для Perceptron/Tesseract
+     * Custom TextWatcher that provides safe, debounced syntax highlighting for the Perceptron language.
+     * It prevents UI lag on large files by using coroutines and performance fallbacks.
      */
     private class TesseractHighlighter(
         private val editText: EditText,
         private val lifecycle: androidx.lifecycle.Lifecycle
     ) : TextWatcher {
         
+        // Color definitions matching a dark theme (similar to Dracula/Material Dark)
         private val colorKeyword = Color.parseColor("#C792EA")
         private val colorString = Color.parseColor("#C3E88D")
         private val colorComment = Color.parseColor("#546E7A")
@@ -464,6 +501,7 @@ class TesseractActivity : AppCompatActivity() {
         private val colorFunction = Color.parseColor("#82AAFF")
         private val colorOperator = Color.parseColor("#89DDFF")
         
+        // Regex patterns for different syntax elements
         private val keywordPattern = Pattern.compile(
             "\\b(if|else|elif|for|while|do|return|break|continue|try|catch|finally|throw|val|var|const|fun|function|class|interface|object|package|import|from|as|in|is|not|and|or|true|false|null|void|open|close|exit|print|println|log|eval|exec|run|system|command)\\b"
         )
@@ -490,7 +528,7 @@ class TesseractActivity : AppCompatActivity() {
 
         private var debounceJob: Job? = null
         private val debounceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        private val debounceDelay = 300L
+        private val debounceDelay = 300L // Wait 300ms after typing stops before highlighting
         
         @Volatile
         private var isActive = true
@@ -501,6 +539,7 @@ class TesseractActivity : AppCompatActivity() {
         override fun afterTextChanged(s: Editable?) {
             if (!isActive || s == null) return
             
+            // Cancel previous debounce job to avoid redundant processing
             debounceJob?.cancel()
             
             debounceJob = debounceScope.launch {
@@ -510,10 +549,12 @@ class TesseractActivity : AppCompatActivity() {
             }
         }
         
+        // Applies syntax highlighting, with a performance fallback for very large files
         private fun applySyntaxHighlighting(editable: Editable) {
             try {
                 val text = editable.toString()
                 
+                // Fallback to minimal highlighting for files > 50KB to prevent ANRs (Application Not Responding)
                 if (text.length > 50000) {
                     applyMinimalHighlighting(editable, text)
                     return
@@ -521,6 +562,7 @@ class TesseractActivity : AppCompatActivity() {
                 
                 removeOldSpans(editable)
                 
+                // Apply highlighting in specific order to avoid overlapping span conflicts
                 applyPatternSafe(editable, text, stringPattern, colorString)
                 applyPatternSafe(editable, text, commentPattern, colorComment)
                 applyPatternSafe(editable, text, operatorPattern, colorOperator)
@@ -533,23 +575,26 @@ class TesseractActivity : AppCompatActivity() {
             }
         }
         
+        // Applies only string and comment highlighting for large files to maintain basic readability
         private fun applyMinimalHighlighting(editable: Editable, text: String) {
             removeOldSpans(editable)
             applyPatternSafe(editable, text, stringPattern, colorString)
             applyPatternSafe(editable, text, commentPattern, colorComment)
         }
         
+        // Removes all existing ForegroundColorSpans to prevent memory leaks and visual glitches
         private fun removeOldSpans(editable: Editable) {
             val oldSpans = editable.getSpans(0, editable.length, ForegroundColorSpan::class.java)
             for (span in oldSpans) {
                 try {
                     editable.removeSpan(span)
                 } catch (e: Exception) {
-                    // Игнорируем
+                    // Ignore concurrent modification exceptions during cleanup
                 }
             }
         }
 
+        // Safely applies a regex pattern as a color span, ensuring it doesn't overlap with strings/comments
         private fun applyPatternSafe(editable: Editable, text: String, pattern: Pattern, color: Int) {
             try {
                 val matcher = pattern.matcher(text)
@@ -561,6 +606,7 @@ class TesseractActivity : AppCompatActivity() {
                     
                     if (start < 0 || end > text.length || start >= end) continue
                     
+                    // Only apply highlighting if the match is not inside a string or comment
                     if (!isInsideStringOrComment(text, start, end)) {
                         try {
                             editable.setSpan(
@@ -570,15 +616,16 @@ class TesseractActivity : AppCompatActivity() {
                                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                             )
                         } catch (e: Exception) {
-                            // Игнорируем
+                            // Ignore span application errors
                         }
                     }
                 }
             } catch (e: Exception) {
-                // Игнорируем
+                // Ignore regex matching errors
             }
         }
         
+        // State machine to determine if a given text range is inside a string literal or comment block
         private fun isInsideStringOrComment(text: String, start: Int, end: Int): Boolean {
             try {
                 var inDoubleQuote = false
@@ -587,9 +634,11 @@ class TesseractActivity : AppCompatActivity() {
                 var blockCommentDepth = 0
                 var i = 0
                 
+                // Scan from the beginning of the text up to the start of the current match
                 while (i < start && i < text.length) {
                     val char = text[i]
                     
+                    // Skip escaped characters
                     if (i > 0 && text[i - 1] == '\\') {
                         i++
                         continue
@@ -618,10 +667,12 @@ class TesseractActivity : AppCompatActivity() {
                     i++
                 }
                 
+                // If we are still inside a string or block comment, do not highlight
                 if (inDoubleQuote || inSingleQuote || inBacktick || blockCommentDepth > 0) {
                     return true
                 }
                 
+                // Check for single-line comments (// or #) on the current line
                 val lineStart = text.lastIndexOf('\n', start - 1) + 1
                 val linePrefix = text.substring(lineStart, start)
                 
@@ -631,10 +682,11 @@ class TesseractActivity : AppCompatActivity() {
                 
                 return false
             } catch (e: Exception) {
-                return false
+                return false // Fail-safe: if parsing fails, assume it's not inside a string/comment
             }
         }
         
+        // Cleans up coroutines and flags to prevent memory leaks when the Activity is destroyed
         fun cleanup() {
             isActive = false
             debounceJob?.cancel()
