@@ -1,4 +1,5 @@
-# 🌌 Perceptron Language Documentation (v5.1 "QUASAR")n mechanisms, and a parameterized user interface for seamless numerical computations.
+# 🌌 Perceptron Language Documentation (v5.1 "QUASAR") 
+Mechanisms, and a parameterized user interface for seamless numerical computations.
 
 ---
 
