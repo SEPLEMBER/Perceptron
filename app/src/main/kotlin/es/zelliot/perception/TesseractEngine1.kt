@@ -786,7 +786,6 @@ class Evaluator(private val context: Context) {
             eval(Expr.FuncCall(node.right.name, listOf(tempLit), node.line))
         } else {
             throw TesseractError(R.string.err_pipeline_func_expected, node.line)
-0
         }
     }
 
