@@ -31,7 +31,7 @@
         <!-- Perceptron -->
         <activity
             android:name=".TesseractActivity"
-            android:exported="false"
+            android:exported="true"
             android:theme="@style/AppTheme.Transparent" />
 
 
