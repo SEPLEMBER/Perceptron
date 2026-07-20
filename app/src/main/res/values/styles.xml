@@ -1,15 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Базовая тема приложения: NoActionBar, фон тёмный -->
+    <!-- ==================================================================== -->
+    <!-- БАЗОВАЯ ТЕМА ПРИЛОЖЕНИЯ                                              -->
+    <!-- ==================================================================== -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Тёмный фон для всего приложения -->
         <item name="android:windowBackground">#0A0A0A</item>
         <item name="android:colorBackground">#0A0A0A</item>
-        <!-- текстовые цвета будут контролироваться в разметке -->
+        
+        <!-- Цвет текста по умолчанию (светлый, чтобы не был чёрным на тёмном фоне) -->
+        <item name="android:textColor">#EEFFFF</item>
+        <item name="android:textColorHint">#546E7A</item>
+        
+        <!-- Цвет акцента (используется для курсора, выделения текста, переключателей) -->
+        <item name="colorAccent">#FFAA00</item>
+        <item name="colorPrimary">#FFAA00</item>
+        <item name="colorPrimaryDark">#0A0A0A</item>
+
+        <!-- Отключаем стандартное светлое выделение при долгом нажатии -->
+        <item name="android:colorLongPressedHighlight">#33FFAA00</item>
+        <item name="android:colorActivatedHighlight">#33FFAA00</item>
     </style>
 
-    <!-- Прозрачная тема для Settings (как в манифесте было указано) -->
+    <!-- ==================================================================== -->
+    <!-- ПРОЗРАЧНАЯ ТЕМА (для Settings или оверлейных активностей)            -->
+    <!-- ==================================================================== -->
     <style name="AppTheme.Transparent" parent="AppTheme">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
+    <!-- ==================================================================== -->
+    <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ (Используется в TesseractActivity.kt)       -->
+    <!-- ==================================================================== -->
+    <style name="DarkDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
+        <!-- Фон диалога (чуть светнее основного фона для контраста) -->
+        <item name="android:windowBackground">#1C1C1C</item>
+        
+        <!-- Цвета текста внутри диалога -->
+        <item name="android:textColorPrimary">#EEFFFF</item>
+        <item name="android:textColorSecondary">#C3E88D</item>
+        
+        <!-- Цвет заголовка -->
+        <item name="android:textColorAlertDialogTitle">#FFAA00</item>
+        
+        <!-- Цвет акцента (подчёркивание EditText, активные элементы) -->
+        <item name="colorAccent">#FFAA00</item>
+        <item name="colorControlActivated">#FFAA00</item>
+        <item name="colorControlNormal">#546E7A</item>
+
+        <!-- Стили для кнопок диалога (Да/Отмена) -->
+        <item name="buttonBarPositiveButtonStyle">@style/DarkDialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/DarkDialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/DarkDialogButton</item>
+    </style>
+
+    <!-- Стиль кнопок внутри тёмного диалога -->
+    <style name="DarkDialogButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">#C3E88D</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- ==================================================================== -->
+    <!-- СТИЛЬ ДЛЯ OVERLAY РЕЗУЛЬТАТОВ (Опционально, для единообразия)        -->
+    <!-- ==================================================================== -->
+    <style name="OverlayResultTheme" parent="AppTheme">
+        <!-- Можно использовать для кастомизации, если потребуется вынести стили оверлея из XML-разметки -->
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">false</item>
     </style>
 </resources>
