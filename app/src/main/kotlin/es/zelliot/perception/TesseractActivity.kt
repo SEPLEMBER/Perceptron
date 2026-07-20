@@ -112,7 +112,8 @@ class TesseractActivity : AppCompatActivity() {
         }
 
         binding.btnExit.setOnClickListener {
-            AlertDialog.Builder(this)
+            val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
+            AlertDialog.Builder(darkContext)
                 .setTitle(getString(R.string.dialog_exit_title))
                 .setMessage(getString(R.string.dialog_exit_message))
                 .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> finish() }
