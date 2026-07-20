@@ -6,9 +6,16 @@ import java.security.SecureRandom
 import java.util.Random
 
 // ============================================================================
-// 1. ИСКЛЮЧЕНИЯ И ТИПЫ ДАННЫХ
+// 1. EXCEPTIONS AND DATA TYPES
 // ============================================================================
 
+/**
+ * Custom exception for interpreter errors.
+ * @param messageResId Resource ID for the localized error message.
+ * @param line The line number where the error occurred.
+ * @param callStack The current function call stack for debugging.
+ * @param formatArgs Arguments to format the localized string.
+ */
 class TesseractError(
     val messageResId: Int, 
     val line: Int, 
@@ -16,27 +23,38 @@ class TesseractError(
     vararg val formatArgs: Any
 ) : Exception()
 
+/** Exception used to immediately return a value from a function. */
 class ReturnValue(val value: TValue?) : Exception()
+
+/** Exception used to trigger application exit with an optional delay. */
 class TesseractExitCommand(val delayMs: Long) : Exception()
+
+/** Exception used to request opening an external Android Activity. */
 class TesseractOpenActCommand(val packageName: String) : Exception()
 
+/**
+ * Sealed class representing all possible value types in the Perceptron language.
+ */
 sealed class TValue {
     data class TNum(val value: Double) : TValue()
     data class TInt(val value: Long) : TValue()
     data class TStr(val value: String) : TValue()
     
+    /** Safely converts the value to Double, throwing an error if incompatible. */
     fun toDouble(): Double = when (this) { 
         is TNum -> value
         is TInt -> value.toDouble()
         else -> throw TesseractError(R.string.err_expected_number, 0) 
     }
     
+    /** Safely converts the value to Long, throwing an error if incompatible. */
     fun toLong(): Long = when (this) { 
         is TNum -> value.toLong()
         is TInt -> value
         else -> throw TesseractError(R.string.err_expected_int, 0) 
     }
 
+    /** Returns a user-friendly string representation of the value. */
     fun displayString(): String = when (this) {
         is TNum -> if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
         is TInt -> value.toString()
@@ -44,16 +62,22 @@ sealed class TValue {
     }
 }
 
+/**
+ * Utility object to prevent mathematical crashes and ensure safe operations.
+ */
 object MathGuard {
     fun checkDivision(b: TValue, line: Int) {
         if (b.toDouble() == 0.0) throw TesseractError(R.string.err_div_by_zero, line)
     }
+    
     fun checkLogarithm(x: TValue, line: Int) {
         if (x.toDouble() <= 0.0) throw TesseractError(R.string.err_log_non_positive, line)
     }
+    
     fun checkRoot(x: TValue, degree: TValue, line: Int) {
         if (x.toDouble() < 0.0 && degree.toDouble() % 2 == 0.0) throw TesseractError(R.string.err_even_root_negative, line)
     }
+    
     fun checkOverflow(result: Double, line: Int) {
         if (result.isInfinite()) throw TesseractError(R.string.err_overflow, line)
         if (result.isNaN()) throw TesseractError(R.string.err_nan, line)
@@ -61,9 +85,12 @@ object MathGuard {
 }
 
 // ============================================================================
-// 2. ЛЕКСЕР (Tokenize)
+// 2. LEXER (Tokenization)
 // ============================================================================
 
+/**
+ * Enum representing all recognized lexical tokens in the Perceptron language.
+ */
 enum class TokenType {
     NUMBER, STRING, IDENTIFIER, PLUS, MINUS, MUL, DIV, INT_DIV, MOD, POW, XOR,
     LPAREN, RPAREN, LBRACE, RBRACE, COMMA, PIPE, ASSIGN, COLON, ARROW,
@@ -73,6 +100,9 @@ enum class TokenType {
 
 data class Token(val type: TokenType, val value: String, val line: Int)
 
+/**
+ * Lexical analyzer that converts raw source code string into a list of Tokens.
+ */
 class Lexer(private val source: String) {
     private var pos = 0
     private var line = 1
@@ -97,9 +127,9 @@ class Lexer(private val source: String) {
             val c = currentChar()
             when {
                 c.isWhitespace() -> advance()
-                c == '\uFEFF' -> advance()
-                c == ';' -> advance() 
-                c == '#' -> { 
+                c == '\uFEFF' -> advance() // Skip UTF-8 BOM
+                c == ';' -> advance() // Ignore statement terminators
+                c == '#' -> { // Single-line comment
                     while (pos < source.length && currentChar() != '\n') advance()
                 }
                 c.isDigit() || (c == '.' && peek().isDigit()) -> readNumber()
@@ -116,7 +146,7 @@ class Lexer(private val source: String) {
                 }
                 c == '*' -> { addToken(TokenType.MUL, "*"); advance() }
                 c == '/' -> {
-                    if (peek() == '/') {
+                    if (peek() == '/') { // Integer division operator
                         addToken(TokenType.INT_DIV, "//"); advance(); advance()
                     } else {
                         addToken(TokenType.DIV, "/"); advance()
@@ -173,6 +203,7 @@ class Lexer(private val source: String) {
         while (pos < source.length && (currentChar().isDigit() || currentChar() == '.')) {
             advance()
         }
+        // Handle scientific notation (e.g., 1e-5)
         if (currentChar() == 'e' || currentChar() == 'E') {
             advance()
             if (currentChar() == '+' || currentChar() == '-') {
@@ -186,14 +217,14 @@ class Lexer(private val source: String) {
     }
 
     private fun readString() {
-        advance()
+        advance() // Skip opening quote
         val start = pos
         while (pos < source.length && currentChar() != '"') {
-            if (currentChar() == '\\' && peek() == '"') advance()
+            if (currentChar() == '\\' && peek() == '"') advance() // Handle escaped quotes
             advance()
         }
         addToken(TokenType.STRING, source.substring(start, pos))
-        if (pos < source.length && currentChar() == '"') advance()
+        if (pos < source.length && currentChar() == '"') advance() // Skip closing quote
     }
 
     private fun readIdentifier() {
@@ -203,6 +234,7 @@ class Lexer(private val source: String) {
         }
         var word = source.substring(start, pos)
         
+        // SECURITY/USABILITY: Normalize common Cyrillic lookalikes to Latin to prevent hidden bugs
         word = word.replace('а', 'a').replace('А', 'A')
                    .replace('в', 'v').replace('В', 'V')
                    .replace('е', 'e').replace('Е', 'E')
@@ -212,6 +244,7 @@ class Lexer(private val source: String) {
                    .replace('у', 'y').replace('У', 'Y')
                    .replace('х', 'x').replace('Х', 'X')
 
+        // Catch common typo: "rate" typed as "ate" due to missing first letter
         if (word == "ate") {
             throw TesseractError(R.string.err_ate_typo, line)
         }
@@ -237,10 +270,13 @@ class Lexer(private val source: String) {
 }
 
 // ============================================================================
-// 3. AST (Абстрактное синтаксическое дерево)
+// 3. AST (Abstract Syntax Tree)
 // ============================================================================
 
+/** Base class for all AST nodes. */
 sealed class Node { abstract val line: Int }
+
+/** Expressions evaluate to a value. */
 sealed class Expr : Node() {
     data class NumLit(val value: Double, override val line: Int) : Expr()
     data class IntLit(val value: Long, override val line: Int) : Expr()
@@ -253,6 +289,7 @@ sealed class Expr : Node() {
     data class IfElse(val cond: Expr, val thenExpr: Expr, val elseExpr: Expr, override val line: Int) : Expr()
 }
 
+/** Statements perform actions but do not necessarily return a value. */
 sealed class Stmt : Node() {
     data class Assignment(val name: String, val value: Expr, override val line: Int) : Stmt()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt>, override val line: Int) : Stmt()
@@ -265,9 +302,13 @@ sealed class Stmt : Node() {
 }
 
 // ============================================================================
-// 4. ПАРСЕР (Recursive Descent)
+// 4. PARSER (Recursive Descent)
 // ============================================================================
 
+/**
+ * Recursive descent parser that converts a list of Tokens into an Abstract Syntax Tree (AST).
+ * Enforces operator precedence and syntax rules.
+ */
 class Parser(private val tokens: List<Token>) {
     private var pos = 0
 
@@ -316,6 +357,7 @@ class Parser(private val tokens: List<Token>) {
             TokenType.VAL, TokenType.CONST -> {
                 advance()
                 val nameToken = expect(TokenType.IDENTIFIER)
+                // Allow optional type hints (e.g., val x: Int = 5), though currently ignored in dynamic typing
                 if (peek().type == TokenType.COLON) { advance(); advance() }
                 expect(TokenType.ASSIGN)
                 Stmt.Assignment(nameToken.value, parseExpression(), nameToken.line)
@@ -349,11 +391,13 @@ class Parser(private val tokens: List<Token>) {
         if (peek().type != TokenType.RPAREN) {
             do {
                 params.add(expect(TokenType.IDENTIFIER).value)
+                // Allow optional type hints for parameters
                 if (peek().type == TokenType.COLON) { advance(); advance() }
                 if (peek().type == TokenType.COMMA) advance() else break
             } while (peek().type != TokenType.RPAREN)
         }
         expect(TokenType.RPAREN)
+        // Allow optional return type arrow (e.g., fn add(a, b) -> { ... })
         if (peek().type == TokenType.ARROW) { advance(); advance() }
         return Stmt.FunctionDef(nameToken.value, params, parseBlock(), nameToken.line)
     }
@@ -369,6 +413,8 @@ class Parser(private val tokens: List<Token>) {
         return stmts
     }
 
+    // --- Expression Parsing (Ordered by Precedence, lowest to highest) ---
+    
     private fun parseExpression(): Expr = parseLogicalOr()
     
     private fun parseLogicalOr(): Expr {
@@ -435,6 +481,7 @@ class Parser(private val tokens: List<Token>) {
         val base = parseUnary()
         return if (peek().type == TokenType.POW) { 
             advance()
+            // Right-associative for exponentiation
             Expr.BinaryOp(base, TokenType.POW, parseExponentiation(), base.line) 
         } else base
     }
@@ -493,9 +540,14 @@ class Parser(private val tokens: List<Token>) {
 }
 
 // ============================================================================
-// 5. EVALUATOR (Интерпретатор)
+// 5. EVALUATOR (Interpreter)
 // ============================================================================
 
+/**
+ * Executes the Abstract Syntax Tree (AST).
+ * Manages variable scope, function calls, and enforces security limits 
+ * (max recursion depth, max loop iterations, execution timeouts).
+ */
 class Evaluator(private val context: Context) {
     private val env = mutableMapOf<String, TValue>()
     private val userFunctions = mutableMapOf<String, Stmt.FunctionDef>()
@@ -506,6 +558,7 @@ class Evaluator(private val context: Context) {
     private val secureRandom = SecureRandom()
     private val standardRandom = Random()
 
+    /** Initializes the environment with built-in mathematical and physical constants. */
     private fun resetEnvironment() {
         env.clear()
         userFunctions.clear()
@@ -518,13 +571,18 @@ class Evaluator(private val context: Context) {
         env["TRUE"] = TValue.TInt(1)
         env["FALSE"] = TValue.TInt(0)
 
+        // Physical constants
         env["C"] = TValue.TNum(299792458.0)
         env["G"] = TValue.TNum(9.81)
         env["EARTH_R"] = TValue.TNum(6371000.0)
         env["AVOGADRO"] = TValue.TNum(6.02214076e23)
+        
+        // Data units
         env["KB"] = TValue.TNum(1024.0)
         env["MB"] = TValue.TNum(1048576.0)
         env["GB"] = TValue.TNum(1073741824.0)
+        
+        // Time units (in seconds or milliseconds)
         env["MS_IN_SEC"] = TValue.TNum(1000.0)
         env["SEC_IN_MIN"] = TValue.TNum(60.0)
         env["MIN_IN_HOUR"] = TValue.TNum(60.0)
@@ -538,6 +596,8 @@ class Evaluator(private val context: Context) {
         env["MONTH"] = TValue.TNum(30.0)
         env["MONTH_WITH_DAY"] = TValue.TNum(31.0)
         env["YEAR"] = TValue.TNum(365.0)
+        
+        // Length units (in meters)
         env["MM"] = TValue.TNum(0.001)
         env["CM"] = TValue.TNum(0.01)
         env["M"] = TValue.TNum(1.0)
@@ -552,10 +612,12 @@ class Evaluator(private val context: Context) {
     fun evaluate(statements: List<Stmt>, constantOverrides: Map<String, String>): String {
         resetEnvironment()
         
+        // Apply user-provided parameter overrides before execution
         constantOverrides.forEach { (key, value) ->
             env[key] = if (value.contains('.')) TValue.TNum(value.toDoubleOrNull() ?: 0.0) else TValue.TInt(value.toLongOrNull() ?: 0L)
         }
 
+        // First pass: register all function definitions
         for (stmt in statements) {
             if (stmt is Stmt.FunctionDef) {
                 userFunctions[stmt.name] = stmt
@@ -566,11 +628,13 @@ class Evaluator(private val context: Context) {
         var exitDelayMs: Long? = null
 
         try {
+            // Second pass: execute statements
             for (stmt in statements) {
                 when (stmt) {
                     is Stmt.SeparatorStmt -> results.add("---")
-                    is Stmt.FunctionDef -> {}
+                    is Stmt.FunctionDef -> {} // Already registered
                     is Stmt.Assignment -> {
+                        // Prevent overriding constants that were explicitly passed as overrides
                         if (!constantOverrides.containsKey(stmt.name)) {
                             env[stmt.name] = eval(stmt.value)
                         }
@@ -586,7 +650,7 @@ class Evaluator(private val context: Context) {
         } catch (e: TesseractExitCommand) {
             exitDelayMs = e.delayMs
         } catch (e: TesseractOpenActCommand) {
-            throw e
+            throw e // Bubble up to Activity to handle Intent
         }
         
         val output = if (results.isEmpty()) context.getString(R.string.result_void) else results.joinToString("\n")
@@ -613,6 +677,7 @@ class Evaluator(private val context: Context) {
             val startTime = System.currentTimeMillis()
             
             while (true) {
+                // SECURITY: Prevent infinite loops from freezing the app
                 if (System.currentTimeMillis() - startTime > 3000) {
                     throw TesseractError(R.string.err_while_timeout, node.line, callStack.toList())
                 }
@@ -623,6 +688,7 @@ class Evaluator(private val context: Context) {
                 
                 for (stmt in node.body) evalStmt(stmt)
                 
+                // SECURITY: Hard limit on loop iterations
                 if (++iterations > 1_000_000) throw TesseractError(R.string.err_while_iterations, node.line, callStack.toList())
             }
             null
@@ -672,7 +738,7 @@ class Evaluator(private val context: Context) {
                 TokenType.LT -> left.toDouble() < right.toDouble()
                 TokenType.GTE -> left.toDouble() >= right.toDouble()
                 TokenType.LTE -> left.toDouble() <= right.toDouble()
-                TokenType.EQ -> abs(left.toDouble() - right.toDouble()) < 1e-9
+                TokenType.EQ -> abs(left.toDouble() - right.toDouble()) < 1e-9 // Epsilon comparison for floats
                 TokenType.NEQ -> abs(left.toDouble() - right.toDouble()) >= 1e-9
                 else -> false
             }
@@ -687,7 +753,7 @@ class Evaluator(private val context: Context) {
         return when (node.op) {
             TokenType.PLUS -> {
                 if (left is TValue.TStr || right is TValue.TStr) {
-                    TValue.TStr(left.displayString() + right.displayString())
+                    TValue.TStr(left.displayString() + right.displayString()) // String concatenation
                 } else {
                     TValue.TNum(left.toDouble() + right.toDouble())
                 }
@@ -708,6 +774,7 @@ class Evaluator(private val context: Context) {
 
     private fun evalPipeline(node: Expr.Pipeline): TValue {
         val leftVal = eval(node.left)
+        // Convert the left value into a literal expression to pass as the first argument
         val tempLit = when (leftVal) {
             is TValue.TNum -> Expr.NumLit(leftVal.value, node.line)
             is TValue.TInt -> Expr.IntLit(leftVal.toLong(), node.line)
@@ -719,12 +786,14 @@ class Evaluator(private val context: Context) {
             eval(Expr.FuncCall(node.right.name, listOf(tempLit), node.line))
         } else {
             throw TesseractError(R.string.err_pipeline_func_expected, node.line)
+0
         }
     }
 
     private fun evalFuncCall(node: Expr.FuncCall): TValue {
         val userFunc = userFunctions[node.name]
         if (userFunc != null) {
+            // SECURITY: Prevent infinite recursion and stack overflow
             totalUserFunctionCalls++
             if (totalUserFunctionCalls > 1_000_000) {
                 throw TesseractError(R.string.err_global_call_limit, node.line, callStack.toList())
@@ -738,16 +807,18 @@ class Evaluator(private val context: Context) {
             
             if (node.args.size != userFunc.params.size) throw TesseractError(R.string.err_args_mismatch, node.line, callStack.toList(), node.name)
             
+            // Save current environment to restore after function execution (lexical scoping)
             val savedEnv = env.toMap()
             for (i in userFunc.params.indices) env[userFunc.params[i]] = eval(node.args[i])
             
             val result = try {
                 var res: TValue? = null
                 for (stmt in userFunc.body) res = evalStmt(stmt)
-                res ?: TValue.TInt(0)
+                res ?: TValue.TInt(0) // Default return 0 if no explicit return
             } catch (e: ReturnValue) {
                 e.value ?: TValue.TInt(0)
             } finally {
+                // Restore environment and cleanup stack
                 env.clear()
                 env.putAll(savedEnv)
                 callStack.removeLast()
@@ -756,6 +827,7 @@ class Evaluator(private val context: Context) {
             return result
         }
 
+        // Built-in functions evaluation
         callStack.add("${node.name}()")
         val args = node.args.map { eval(it) }
         val result = try {
@@ -877,9 +949,13 @@ class Evaluator(private val context: Context) {
 }
 
 // ============================================================================
-// 6. ДВИЖОК (Entry Point)
+// 6. ENGINE (Entry Point)
 // ============================================================================
 
+/**
+ * Main facade for the Perceptron/Tesseract interpreter.
+ * Orchestrates Lexing, Parsing, and Evaluation, and gracefully formats errors for the UI.
+ */
 object TesseractEngine1 {
     fun evaluate(context: Context, script: String, constantOverrides: Map<String, String> = emptyMap()): String {
         return try {
@@ -891,6 +967,7 @@ object TesseractEngine1 {
             evaluator.evaluate(ast, constantOverrides)
             
         } catch (e: TesseractError) {
+            // Format interpreter errors with line numbers and call stack
             val msg = context.getString(e.messageResId, *e.formatArgs)
             val sb = StringBuilder()
             sb.appendLine(context.getString(R.string.error_perceptron_line, e.line, msg))
@@ -902,10 +979,12 @@ object TesseractEngine1 {
             }
             sb.toString().trim()
         } catch (e: StackOverflowError) {
+            // Catch JVM-level stack overflow as a fallback security measure
             context.getString(R.string.error_stack_overflow)
         } catch (e: TesseractOpenActCommand) {
-            throw e
+            throw e // Allow Activity to handle external intents
         } catch (e: Exception) {
+            // Catch any other unexpected crashes
             context.getString(R.string.error_critical, e.message ?: "Unknown")
         }
     }
