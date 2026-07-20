@@ -37,15 +37,15 @@
     <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ (Используется в TesseractActivity.kt)       -->
     <!-- ==================================================================== -->
     <style name="DarkDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
-        <!-- Фон диалога (чуть светнее основного фона для контраста) -->
+        <!-- Фон диалога (чуть светлее основного фона для контраста) -->
         <item name="android:windowBackground">#1C1C1C</item>
         
         <!-- Цвета текста внутри диалога -->
         <item name="android:textColorPrimary">#EEFFFF</item>
         <item name="android:textColorSecondary">#C3E88D</item>
         
-        <!-- Цвет заголовка -->
-        <item name="android:textColorAlertDialogTitle">#FFAA00</item>
+        <!-- Цвет заголовка (ИСПРАВЛЕНО: убран префикс android:, так как это атрибут AppCompat) -->
+        <item name="textColorAlertDialogTitle">#FFAA00</item>
         
         <!-- Цвет акцента (подчёркивание EditText, активные элементы) -->
         <item name="colorAccent">#FFAA00</item>
@@ -65,10 +65,9 @@
     </style>
 
     <!-- ==================================================================== -->
-    <!-- СТИЛЬ ДЛЯ OVERLAY РЕЗУЛЬТАТОВ (Опционально, для единообразия)        -->
+    <!-- СТИЛЬ ДЛЯ OVERLAY РЕЗУЛЬТАТОВ                                        -->
     <!-- ==================================================================== -->
     <style name="OverlayResultTheme" parent="AppTheme">
-        <!-- Можно использовать для кастомизации, если потребуется вынести стили оверлея из XML-разметки -->
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsFloating">false</item>
     </style>
