@@ -28,29 +28,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Settings (SAF) -->
+        <!-- Perceptron -->
         <activity
-            android:name=".SettingsActivity"
+            android:name=".TesseractActivity"
             android:exported="false"
             android:theme="@style/AppTheme.Transparent" />
 
-        <!-- Metadata editor -->
-        <activity
-            android:name=".MetadataActivity"
-            android:exported="false"
-            android:theme="@style/AppTheme" />
-
-        <!-- Chapter order -->
-        <activity
-            android:name=".OrderActivity"
-            android:exported="false"
-            android:theme="@style/AppTheme" />
-
-        <!-- Chapter editor -->
-        <activity
-            android:name=".EditorActivity"
-            android:exported="false"
-            android:theme="@style/AppTheme" />
 
     </application>
 
