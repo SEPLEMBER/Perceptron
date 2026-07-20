@@ -12,92 +12,100 @@
         android:orientation="vertical"
         android:padding="12dp">
 
-        <!-- Заголовок PERCEPTRON -->
-        <TextView
+        <!-- Заголовок PERCEPTRON и Панель кнопок на одном уровне -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/app_header"
-            android:textColor="#82AAFF"
-            android:textStyle="bold"
-            android:fontFamily="monospace"
-            android:textSize="18sp"
-            android:letterSpacing="0.1"
-            android:gravity="center"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Панель кнопок -->
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:scrollbars="none"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:layout_marginBottom="12dp">
-            
-            <LinearLayout
+
+            <!-- Заголовок PERCEPTRON (прижат к правому краю) -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/app_header"
+                android:textColor="#82AAFF"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:textSize="18sp"
+                android:letterSpacing="0.1"
+                android:gravity="end" />
+
+            <!-- Панель кнопок -->
+            <HorizontalScrollView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:scrollbars="none">
+                
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-                <Button 
-                    android:id="@+id/btnClear" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_clear" 
-                    android:backgroundTint="#3A3F46" 
-                    android:textColor="#C3E88D" 
-                    android:layout_marginEnd="8dp" 
-                    style="?android:attr/borderlessButtonStyle"/>
-                    
-                <Button 
-                    android:id="@+id/btnExecute" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_execute" 
-                    android:backgroundTint="#2D4A3E" 
-                    android:textColor="#C3E88D" 
-                    android:layout_marginEnd="8dp" 
-                    style="?android:attr/borderlessButtonStyle"/>
-                    
-                <Button 
-                    android:id="@+id/btnStop" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_stop" 
-                    android:backgroundTint="#4A2D2D" 
-                    android:textColor="#FF5370" 
-                    android:layout_marginEnd="8dp" 
-                    style="?android:attr/borderlessButtonStyle"/>
-                    
-                <Button 
-                    android:id="@+id/btnOpen" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_open" 
-                    android:backgroundTint="#3A3F46" 
-                    android:textColor="#C3E88D" 
-                    android:layout_marginEnd="8dp" 
-                    style="?android:attr/borderlessButtonStyle"/>
-                    
-                <Button 
-                    android:id="@+id/btnShortcut" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_shortcut" 
-                    android:backgroundTint="#3A3F46" 
-                    android:textColor="#C3E88D" 
-                    android:layout_marginEnd="8dp" 
-                    style="?android:attr/borderlessButtonStyle"/>
+                    <Button 
+                        android:id="@+id/btnClear" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_clear" 
+                        android:backgroundTint="#3A3F46" 
+                        android:textColor="#C3E88D" 
+                        android:layout_marginEnd="8dp" 
+                        style="?android:attr/borderlessButtonStyle"/>
+                        
+                    <Button 
+                        android:id="@+id/btnExecute" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_execute" 
+                        android:backgroundTint="#2D4A3E" 
+                        android:textColor="#C3E88D" 
+                        android:layout_marginEnd="8dp" 
+                        style="?android:attr/borderlessButtonStyle"/>
+                        
+                    <Button 
+                        android:id="@+id/btnStop" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_stop" 
+                        android:backgroundTint="#4A2D2D" 
+                        android:textColor="#FF5370" 
+                        android:layout_marginEnd="8dp" 
+                        style="?android:attr/borderlessButtonStyle"/>
+                        
+                    <Button 
+                        android:id="@+id/btnOpen" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_open" 
+                        android:backgroundTint="#3A3F46" 
+                        android:textColor="#C3E88D" 
+                        android:layout_marginEnd="8dp" 
+                        style="?android:attr/borderlessButtonStyle"/>
+                        
+                    <Button 
+                        android:id="@+id/btnShortcut" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_shortcut" 
+                        android:backgroundTint="#3A3F46" 
+                        android:textColor="#C3E88D" 
+                        android:layout_marginEnd="8dp" 
+                        style="?android:attr/borderlessButtonStyle"/>
 
-                <Button 
-                    android:id="@+id/btnExit" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="48dp" 
-                    android:text="@string/btn_exit" 
-                    android:backgroundTint="#4A2D2D" 
-                    android:textColor="#FF5370" 
-                    style="?android:attr/borderlessButtonStyle"/>
-            </LinearLayout>
-        </HorizontalScrollView>
+                    <Button 
+                        android:id="@+id/btnExit" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="48dp" 
+                        android:text="@string/btn_exit" 
+                        android:backgroundTint="#4A2D2D" 
+                        android:textColor="#FF5370" 
+                        style="?android:attr/borderlessButtonStyle"/>
+                </LinearLayout>
+            </HorizontalScrollView>
+        </LinearLayout>
 
         <!-- Основное поле ввода скрипта -->
         <EditText
