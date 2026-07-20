@@ -20,7 +20,7 @@
             android:gravity="center_vertical"
             android:layout_marginBottom="12dp">
 
-            <!-- Заголовок PERCEPTRON (прижат к правому краю) -->
+            <!-- Заголовок PERCEPTRON (прижат к левому краю) -->
             <TextView
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -31,13 +31,16 @@
                 android:fontFamily="monospace"
                 android:textSize="18sp"
                 android:letterSpacing="0.1"
-                android:gravity="end" />
+                android:gravity="start" />
 
             <!-- Панель кнопок -->
             <HorizontalScrollView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:scrollbars="none">
+                android:scrollbars="none"
+                android:clipToPadding="false"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
                 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -52,7 +55,7 @@
                         android:text="@string/btn_clear" 
                         android:backgroundTint="#3A3F46" 
                         android:textColor="#C3E88D" 
-                        android:layout_marginEnd="8dp" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
                         
                     <Button 
@@ -62,7 +65,7 @@
                         android:text="@string/btn_execute" 
                         android:backgroundTint="#2D4A3E" 
                         android:textColor="#C3E88D" 
-                        android:layout_marginEnd="8dp" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
                         
                     <Button 
@@ -72,7 +75,7 @@
                         android:text="@string/btn_stop" 
                         android:backgroundTint="#4A2D2D" 
                         android:textColor="#FF5370" 
-                        android:layout_marginEnd="8dp" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
                         
                     <Button 
@@ -82,7 +85,7 @@
                         android:text="@string/btn_open" 
                         android:backgroundTint="#3A3F46" 
                         android:textColor="#C3E88D" 
-                        android:layout_marginEnd="8dp" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
                         
                     <Button 
@@ -92,7 +95,7 @@
                         android:text="@string/btn_shortcut" 
                         android:backgroundTint="#3A3F46" 
                         android:textColor="#C3E88D" 
-                        android:layout_marginEnd="8dp" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
 
                     <Button 
@@ -102,6 +105,7 @@
                         android:text="@string/btn_exit" 
                         android:backgroundTint="#4A2D2D" 
                         android:textColor="#FF5370" 
+                        android:layout_margin="4dp" 
                         style="?android:attr/borderlessButtonStyle"/>
                 </LinearLayout>
             </HorizontalScrollView>
