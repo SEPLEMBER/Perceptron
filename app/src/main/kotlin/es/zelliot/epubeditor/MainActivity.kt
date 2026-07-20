@@ -2,7 +2,11 @@ package es.zelliot.perceptron
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
+import android.os.Handler
+import android.os.Looper
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -11,25 +15,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val btnMetadata = findViewById<Button>(R.id.btn_metadata)
-        val btnOrder = findViewById<Button>(R.id.btn_order)
-        val btnEdit = findViewById<Button>(R.id.btn_edit)
-        val btnSettings = findViewById<Button>(R.id.btn_settings)
+        val textPerceptron = findViewById<TextView>(R.id.textPerceptron)
 
-        btnMetadata.setOnClickListener {
-            startActivity(Intent(this, MetadataActivity::class.java))
-        }
+        // Лёгкая анимация (появление)
+        val fadeIn = AlphaAnimation(0f, 1f)
+        fadeIn.duration = 700
+        fadeIn.repeatCount = Animation.INFINITE
+        fadeIn.repeatMode = Animation.REVERSE
+        textPerceptron.startAnimation(fadeIn)
 
-        btnOrder.setOnClickListener {
-            startActivity(Intent(this, OrderActivity::class.java))
-        }
-
-        btnEdit.setOnClickListener {
-            startActivity(Intent(this, EditorActivity::class.java))
-        }
-
-        btnSettings.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
+        // Запуск перехода через 2 секунды
+        Handler(Looper.getMainLooper()).postDelayed({
+            startActivity(Intent(this, TesseractActivity::class.java))
+            finish()
+        }, 1300)
     }
 }
