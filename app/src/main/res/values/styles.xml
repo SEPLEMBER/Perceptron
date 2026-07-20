@@ -40,12 +40,9 @@
         <!-- Фон диалога (чуть светлее основного фона для контраста) -->
         <item name="android:windowBackground">#1C1C1C</item>
         
-        <!-- Цвета текста внутри диалога -->
+        <!-- Цвета текста внутри диалога (включая заголовок) -->
         <item name="android:textColorPrimary">#EEFFFF</item>
         <item name="android:textColorSecondary">#C3E88D</item>
-        
-        <!-- Цвет заголовка (ИСПРАВЛЕНО: убран префикс android:, так как это атрибут AppCompat) -->
-        <item name="textColorAlertDialogTitle">#FFAA00</item>
         
         <!-- Цвет акцента (подчёркивание EditText, активные элементы) -->
         <item name="colorAccent">#FFAA00</item>
