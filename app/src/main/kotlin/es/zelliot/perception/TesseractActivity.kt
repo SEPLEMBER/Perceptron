@@ -347,7 +347,7 @@ class TesseractActivity : AppCompatActivity() {
                 val systemResult = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
-                            TesseractEngine2.evaluateSystemCommand(script)
+                            TesseractEngine2.evaluateSystemCommand(this@TesseractActivity, script)
                         }
                     }
                 } catch (e: TimeoutCancellationException) {
@@ -367,7 +367,8 @@ class TesseractActivity : AppCompatActivity() {
                 val result = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
-                            TesseractEngine1.evaluate(script, emptyMap())
+                            // Обратите внимание: добавлен параметр 'this@TesseractActivity' (Context)
+                            TesseractEngine1.evaluate(this@TesseractActivity, script, emptyMap())
                         }
                     }
                 } catch (e: TimeoutCancellationException) {
