@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ==================================================================== -->
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС (UI)                                              -->
+    <!-- ==================================================================== -->
+    <string name="app_name">Perceptron</string>
+    <string name="app_header">PERCEPTRON</string>
+    <string name="hint_script">// Введите код Perceptron...</string>
+    <string name="hint_shortcut_name">Название (например, Расчет BMI)</string>
+
+    <!-- Кнопки -->
+    <string name="btn_clear">Очистить</string>
+    <string name="btn_execute">Выполнить</string>
+    <string name="btn_stop">СТОП</string>
+    <string name="btn_open">Открыть</string>
+    <string name="btn_shortcut">Ярлык</string>
+    <string name="btn_exit">Выход</string>
+    <string name="btn_close">Закрыть</string>
+    <string name="btn_create">Создать</string>
+
+    <!-- ==================================================================== -->
+    <!-- ДИАЛОГИ И ОВЕРЛЕИ                                                    -->
+    <!-- ==================================================================== -->
+    <string name="result_header">>>> РЕЗУЛЬТАТ (нажмите для копирования)</string>
+    
+    <string name="dialog_exit_title">Выход</string>
+    <string name="dialog_exit_message">Вы уверены?</string>
+    
+    <string name="dialog_params_title">Редактировать параметры скрипта</string>
+    
+    <string name="dialog_shortcut_title">Создать ярлык Perceptron</string>
+    
+    <string name="dialog_yes">Да</string>
+    <string name="dialog_no">Нет</string>
+    <string name="dialog_cancel">Отмена</string>
+
+    <!-- ==================================================================== -->
+    <!-- УВЕДОМЛЕНИЯ (TOASTS)                                                 -->
+    <!-- ==================================================================== -->
+    <string name="toast_cleared">Код и параметры очищены</string>
+    <string name="toast_stopped">Выполнение остановлено</string>
+    <string name="toast_copied">Результат скопирован</string>
+    <string name="toast_file_loaded">Файл загружен</string>
+    <string name="toast_file_error">Ошибка чтения файла: %1$s</string>
+    <string name="toast_open_file_first">Сначала откройте файл скрипта</string>
+    <string name="toast_enter_shortcut_name">Введите название ярлыка</string>
+    <string name="toast_shortcut_created">Ярлык Perceptron \'%1$s\' создан</string>
+    <string name="toast_screen_cleared">Экран очищен</string>
+    <string name="toast_script_executed_exit">✅ Скрипт Perceptron выполнен.\nПриложение будет закрыто.</string>
+    <string name="toast_exiting_in_ms">Выход через %1$d мс...</string>
+    <string name="toast_transition_success">✅ Переход в\n%1$s\nвыполнен успешно.</string>
+
+    <!-- ==================================================================== -->
+    <!-- СИСТЕМНЫЕ ОШИБКИ И РЕЗУЛЬТАТЫ (Activity)                             -->
+    <!-- ==================================================================== -->
+    <string name="error_timeout_system">💥 ОШИБКА PERCEPTRON: Превышен лимит времени выполнения системной команды (3 сек).</string>
+    <string name="error_timeout_script">💥 ОШИБКА PERCEPTRON: Превышен лимит времени выполнения скрипта (3 сек).</string>
+    <string name="error_open_target_tips">💥 ОШИБКА: Не удалось открыть \'%1$s\'.\n\n💡 Совет:\n• Для запуска приложения используйте только имя пакета: \"com.android.settings\"\n• Для конкретной Activity используйте формат: \"пакет/класс\"</string>
+    <string name="error_open_target_exception">💥 ОШИБКА: Не удалось открыть \'%1$s\'.\n%2$s</string>
+    <string name="error_generic">💥 ОШИБКА: %1$s</string>
+    <string name="clipboard_label">Perceptron Result</string>
+
+    <!-- ==================================================================== -->
+    <!-- ДВИЖОК: ОШИБКИ ИНТЕРПРЕТАТОРА (TesseractEngine1)                     -->
+    <!-- ==================================================================== -->
+    <string name="error_perceptron_line">💥 ОШИБКА PERCEPTRON [Строка %1$d]: %2$s</string>
+    <string name="error_call_stack">📉 Стек вызовов:</string>
+    <string name="error_stack_overflow">💥 ОШИБКА PERCEPTRON: Переполнение стека вызовов (слишком глубокая рекурсия). Приложение защищено от вылета.</string>
+    <string name="error_critical">💥 КРИТИЧЕСКАЯ ОШИБКА: %1$s</string>
+    
+    <string name="err_expected_number">Ожидается число, получена строка</string>
+    <string name="err_expected_int">Ожидается целое число</string>
+    <string name="err_div_by_zero">Деление на ноль строго запрещено.</string>
+    <string name="err_log_non_positive">Логарифм неположительного числа не определен.</string>
+    <string name="err_even_root_negative">Корень четной степени из отрицательного числа.</string>
+    <string name="err_overflow">Переполнение разрядной сетки.</string>
+    <string name="err_nan">Математическая неопределенность (NaN).</string>
+    <string name="err_unknown_char_unicode">Неизвестный символ: \'%1$s\' (Unicode: %2$d)</string>
+    <string name="err_ate_typo">Обнаружен идентификатор \'ate\'. Возможно, вы хотели написать \'rate\'.</string>
+    <string name="err_expected_token">Ожидалось %1$s, получено \'%2$s\'</string>
+    <string name="err_unexpected_token">Неожиданный токен: \'%1$s\'</string>
+    <string name="err_var_undefined">Переменная \'%1$s\' не определена.</string>
+    <string name="err_assert_false">Утверждение (assert) ложно.</string>
+    <string name="err_while_timeout">Превышен лимит времени выполнения цикла (3 сек).</string>
+    <string name="err_while_iterations">Превышен лимит итераций while (1 000 000).</string>
+    <string name="err_xor_int_only">XOR (^^) применим только к целым числам.</string>
+    <string name="err_unknown_operator">Неизвестный оператор \'%1$s\'</string>
+    <string name="err_pipeline_func_expected">Справа от |> должен быть вызов функции.</string>
+    <string name="err_global_call_limit">Превышен глобальный лимит вызовов функций (1 000 000). Обнаружена возможная бесконечная рекурсия.</string>
+    <string name="err_recursion_depth">Превышен лимит глубины рекурсии (2000).</string>
+    <string name="err_args_mismatch">Несоответствие аргументов в \'%1$s\'.</string>
+    
+    <!-- Ошибки встроенных функций -->
+    <string name="err_open_act_string">Функция open_act требует строковый аргумент (имя пакета).</string>
+    <string name="err_set_seed_args">Функция set_seed требует один аргумент (число).</string>
+    <string name="err_random_no_args">Функция random не принимает аргументов.</string>
+    <string name="err_random_int_args">random_int требует два аргумента (min, max).</string>
+    <string name="err_random_int_min_max">min не может быть больше max в random_int.</string>
+    <string name="err_random_int_range">Диапазон random_int слишком велик или некорректен.</string>
+    <string name="err_secure_random_no_args">Функция secure_random не принимает аргументов.</string>
+    <string name="err_secure_random_int_args">secure_random_int требует два аргумента (min, max).</string>
+    <string name="err_secure_random_int_min_max">min не может быть больше max в secure_random_int.</string>
+    <string name="err_char_at_args">char_at требует строку и индекс.</string>
+    <string name="err_char_at_bounds">Индекс вне границ строки.</string>
+    <string name="err_char_at_first_string">Первый аргумент char_at должен быть строкой.</string>
+    <string name="err_avg_args">Функция avg требует хотя бы один аргумент.</string>
+    <string name="err_max_val_args">Функция max_val требует хотя бы один аргумент.</string>
+    <string name="err_min_val_args">Функция min_val требует хотя бы один аргумент.</string>
+    <string name="err_median_args">Функция median требует хотя бы один аргумент.</string>
+    <string name="err_tan_infinity">Тангенс стремится к бесконечности.</string>
+    <string name="err_asin_domain">Домен arcsin: [-1, 1].</string>
+    <string name="err_acos_domain">Домен arccos: [-1, 1].</string>
+    <string name="err_abs_number">abs требует число</string>
+    <string name="err_rev_type">rev требует Int или String</string>
+    <string name="err_unknown_func">Неизвестная функция \'%1$s\'.</string>
+
+    <!-- Результаты движка -->
+    <string name="result_void">void</string>
+    <string name="result_success">✅ Успешно.\nРезультат:\n%1$s</string>
+
+    <!-- ==================================================================== -->
+    <!-- ДВИЖОК: СИСТЕМНЫЕ КОМАНДЫ (TesseractEngine2)                         -->
+    <!-- ==================================================================== -->
+    <string name="cmd_about_title">🌌 PERCEPTRON LANGUAGE</string>
+    <string name="cmd_about_desc">Доменоспецифичный математический язык.\nВерсия: %1$s</string>
+    <string name="cmd_about_dev">👥 РАЗРАБОТАНО:\n   • Gemini (Google LLC)\n   • QWEN (Alibaba Group)\n   • ZELLIOT (EFP)</string>
+    <string name="cmd_about_features">💡 Поддерживает: переменные, циклы, функции,\n   тригонометрию, защиту от переполнений\n   и автоматическую нормализацию кириллицы.</string>
+    <!-- Обратите внимание: символы < и > экранированы как &lt; и &gt; для валидности XML -->
+    <string name="cmd_help_content">📖 СПРАВКА PERCEPTRON:\n• Переменные: val x = 10\n• Функции: fn name(a, b) { return a + b }\n• Циклы: while i &lt; 10 do { ... }\n• Условия: if x &gt; 0 then "Да" else "Нет"\n• Математика: sin(), cos(), pow(), sqrt()\n• Выход: EXIT или EXIT 2000 (мс)\n• Очистка: CLS</string>
+    <string name="cmd_version">Perceptron v%1$s</string>
+</resources>
