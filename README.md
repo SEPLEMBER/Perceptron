@@ -2,7 +2,7 @@
 
 ---
 
-# 🌌 Perceptron
+# 🌌 Perceptron 
 **A Domain-Specific Language (DSL) for Mathematical Logic and Decision-Making on Mobile Devices.**
 
 Perceptron is not just a mathematical calculator; it is a **mathematical logic engine**. It is designed to evaluate complex conditions, calculate weighted scores, and execute parameterized algorithms directly on Android devices, bridging the gap between raw math and business/engineering logic.
