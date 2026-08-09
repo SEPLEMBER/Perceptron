@@ -24,17 +24,21 @@
             android:paddingEnd="8dp"
             android:elevation="4dp">
 
-            <!-- Бренд / Заголовок -->
+            <!-- Бренд / Заголовок (Neon Cyan с эффектом свечения) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/app_header"
-                android:textColor="#82AAFF"
+                android:textColor="#00E5FF"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
                 android:textSize="16sp"
                 android:letterSpacing="0.15"
-                android:layout_marginEnd="16dp" />
+                android:layout_marginEnd="16dp"
+                android:shadowColor="#00E5FF"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="6" />
 
             <!-- Вертикальный разделитель -->
             <View
@@ -61,6 +65,7 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
+                    <!-- Очистить (Теперь красный, как Stop/Exit) -->
                     <Button 
                         android:id="@+id/btnClear" 
                         android:layout_width="wrap_content" 
@@ -69,16 +74,21 @@
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:text="@string/btn_clear" 
-                        android:textColor="#A9B7C6"
-                        android:backgroundTint="#1E1E1E"
+                        android:textColor="#FF3355"
+                        android:backgroundTint="#4A1A1A"
                         android:fontFamily="monospace"
                         android:textSize="12sp"
                         android:textAllCaps="false"
                         android:letterSpacing="0.05"
                         android:layout_marginEnd="4dp" 
                         style="?android:attr/borderlessButtonStyle"
-                        android:stateListAnimator="@null" />
+                        android:stateListAnimator="@null"
+                        android:shadowColor="#FF3355"
+                        android:shadowDx="0"
+                        android:shadowDy="0"
+                        android:shadowRadius="3" />
                         
+                    <!-- Выполнить (Яркий неоновый зеленый) -->
                     <Button 
                         android:id="@+id/btnExecute" 
                         android:layout_width="wrap_content" 
@@ -87,8 +97,8 @@
                         android:paddingStart="16dp"
                         android:paddingEnd="16dp"
                         android:text="@string/btn_execute" 
-                        android:textColor="#C3E88D"
-                        android:backgroundTint="#1A3324"
+                        android:textColor="#A8FF60"
+                        android:backgroundTint="#224424"
                         android:fontFamily="monospace"
                         android:textSize="12sp"
                         android:textStyle="bold"
@@ -96,8 +106,13 @@
                         android:letterSpacing="0.05"
                         android:layout_marginEnd="4dp" 
                         style="?android:attr/borderlessButtonStyle"
-                        android:stateListAnimator="@null" />
+                        android:stateListAnimator="@null"
+                        android:shadowColor="#A8FF60"
+                        android:shadowDx="0"
+                        android:shadowDy="0"
+                        android:shadowRadius="4" />
                         
+                    <!-- Стоп (Яркий неоновый красный) -->
                     <Button 
                         android:id="@+id/btnStop" 
                         android:layout_width="wrap_content" 
@@ -106,15 +121,19 @@
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:text="@string/btn_stop" 
-                        android:textColor="#FF5370"
-                        android:backgroundTint="#331A1A"
+                        android:textColor="#FF3355"
+                        android:backgroundTint="#4A1A1A"
                         android:fontFamily="monospace"
                         android:textSize="12sp"
                         android:textAllCaps="false"
                         android:letterSpacing="0.05"
                         android:layout_marginEnd="4dp" 
                         style="?android:attr/borderlessButtonStyle"
-                        android:stateListAnimator="@null" />
+                        android:stateListAnimator="@null"
+                        android:shadowColor="#FF3355"
+                        android:shadowDx="0"
+                        android:shadowDy="0"
+                        android:shadowRadius="3" />
 
                     <!-- Разделитель групп кнопок -->
                     <View
@@ -160,6 +179,7 @@
                         style="?android:attr/borderlessButtonStyle"
                         android:stateListAnimator="@null" />
 
+                    <!-- Выход (Яркий неоновый красный) -->
                     <Button 
                         android:id="@+id/btnExit" 
                         android:layout_width="wrap_content" 
@@ -168,15 +188,19 @@
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
                         android:text="@string/btn_exit" 
-                        android:textColor="#FF5370"
-                        android:backgroundTint="#331A1A"
+                        android:textColor="#FF3355"
+                        android:backgroundTint="#4A1A1A"
                         android:fontFamily="monospace"
                         android:textSize="12sp"
                         android:textAllCaps="false"
                         android:letterSpacing="0.05"
                         android:layout_marginEnd="4dp" 
                         style="?android:attr/borderlessButtonStyle"
-                        android:stateListAnimator="@null" />
+                        android:stateListAnimator="@null"
+                        android:shadowColor="#FF3355"
+                        android:shadowDx="0"
+                        android:shadowDy="0"
+                        android:shadowRadius="3" />
                 </LinearLayout>
             </HorizontalScrollView>
         </LinearLayout>
@@ -237,7 +261,7 @@
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 3. STATUS BAR (Нижняя информационная панель IDE) -->
+        <!-- 3. STATUS BAR (Нижняя информационная панель IDE - Neon Cyan) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="32dp"
@@ -251,10 +275,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="UTF-8"
-                android:textColor="#546E7A"
+                android:textColor="#00E5FF"
                 android:fontFamily="monospace"
                 android:textSize="10sp"
-                android:letterSpacing="0.05" />
+                android:letterSpacing="0.05"
+                android:shadowColor="#00E5FF"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="2" />
 
             <View
                 android:layout_width="1dp"
@@ -267,10 +295,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="PERCEPTRON"
-                android:textColor="#546E7A"
+                android:textColor="#00E5FF"
                 android:fontFamily="monospace"
                 android:textSize="10sp"
-                android:letterSpacing="0.05" />
+                android:letterSpacing="0.05"
+                android:shadowColor="#00E5FF"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="2" />
 
             <View
                 android:layout_width="1dp"
@@ -283,10 +315,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Ready"
-                android:textColor="#82AAFF"
+                android:textColor="#00E5FF"
                 android:fontFamily="monospace"
                 android:textSize="10sp"
-                android:letterSpacing="0.05" />
+                android:letterSpacing="0.05"
+                android:shadowColor="#00E5FF"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="2" />
 
             <View
                 android:layout_width="0dp"
@@ -297,10 +333,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="v5.0.1"
-                android:textColor="#546E7A"
+                android:textColor="#00E5FF"
                 android:fontFamily="monospace"
                 android:textSize="10sp"
-                android:letterSpacing="0.05" />
+                android:letterSpacing="0.05"
+                android:shadowColor="#00E5FF"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="2" />
         </LinearLayout>
 
     </LinearLayout>
@@ -348,7 +388,7 @@
                 <View
                     android:layout_width="4dp"
                     android:layout_height="20dp"
-                    android:background="#C3E88D"
+                    android:background="#A8FF60"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
@@ -356,21 +396,29 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/result_header"
-                    android:textColor="#C3E88D"
+                    android:textColor="#A8FF60"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
                     android:textSize="13sp"
                     android:letterSpacing="0.1"
-                    android:textAllCaps="true" />
+                    android:textAllCaps="true"
+                    android:shadowColor="#A8FF60"
+                    android:shadowDx="0"
+                    android:shadowDy="0"
+                    android:shadowRadius="3" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="OUTPUT"
-                    android:textColor="#546E7A"
+                    android:textColor="#00E5FF"
                     android:fontFamily="monospace"
                     android:textSize="10sp"
-                    android:letterSpacing="0.1" />
+                    android:letterSpacing="0.1"
+                    android:shadowColor="#00E5FF"
+                    android:shadowDx="0"
+                    android:shadowDy="0"
+                    android:shadowRadius="2" />
             </LinearLayout>
 
             <!-- Содержимое консоли -->
