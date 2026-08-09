@@ -23,6 +23,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -76,6 +77,14 @@ class TesseractActivity : AppCompatActivity() {
         setupButtons()
         setupOverlays()
         checkIntentForShortcut()
+        
+        // Intercept system back button to show exit confirmation
+        val callback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                showExitConfirmationDialog()
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, callback)
     }
 
     // Initializes the custom syntax highlighter and attaches it to the script editor
@@ -87,9 +96,7 @@ class TesseractActivity : AppCompatActivity() {
     // Configures click listeners for all primary action buttons in the UI
     private fun setupButtons() {
         binding.btnClear.setOnClickListener {
-            binding.etScript.text.clear()
-            currentFileUri = null
-            showToast(getString(R.string.toast_cleared))
+            showClearConfirmationDialog()
         }
 
         binding.btnExecute.setOnClickListener {
@@ -112,14 +119,39 @@ class TesseractActivity : AppCompatActivity() {
         }
 
         binding.btnExit.setOnClickListener {
-            val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
-            AlertDialog.Builder(darkContext)
-                .setTitle(getString(R.string.dialog_exit_title))
-                .setMessage(getString(R.string.dialog_exit_message))
-                .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> finish() }
-                .setNegativeButton(getString(R.string.dialog_no), null)
-                .show()
+            showExitConfirmationDialog()
         }
+    }
+    
+    // Shows confirmation dialog before exiting the app
+    private fun showExitConfirmationDialog() {
+        val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
+        AlertDialog.Builder(darkContext)
+            .setTitle(getString(R.string.dialog_exit_title))
+            .setMessage(getString(R.string.dialog_exit_message))
+            .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> finish() }
+            .setNegativeButton(getString(R.string.dialog_no), null)
+            .show()
+    }
+    
+    // Shows confirmation dialog before clearing the editor
+    private fun showClearConfirmationDialog() {
+        // Skip dialog if there is nothing to clear
+        if (binding.etScript.text.isNullOrEmpty() && currentFileUri == null) {
+            return
+        }
+        
+        val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
+        AlertDialog.Builder(darkContext)
+            .setTitle("Clear Editor")
+            .setMessage("Are you sure you want to clear the current script?")
+            .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> 
+                binding.etScript.text.clear()
+                currentFileUri = null
+                showToast(getString(R.string.toast_cleared))
+            }
+            .setNegativeButton(getString(R.string.dialog_no), null)
+            .show()
     }
 
     // Sets up interactions for the result overlay (closing and copying to clipboard)
