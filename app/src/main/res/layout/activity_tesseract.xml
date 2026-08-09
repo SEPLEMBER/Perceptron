@@ -5,42 +5,55 @@
     android:background="#0A0A0A"
     android:fitsSystemWindows="true">
 
-    <!-- Основной контент -->
+    <!-- ОСНОВНОЙ КОНТЕНТ (IDE Layout) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:orientation="vertical">
 
-        <!-- Заголовок PERCEPTRON и Панель кнопок на одном уровне -->
+        <!-- 1. TOP BAR (Панель инструментов IDE) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="12dp">
+            android:background="#0A0A0A"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp"
+            android:elevation="4dp">
 
-            <!-- Заголовок PERCEPTRON (прижат к левому краю) -->
+            <!-- Бренд / Заголовок -->
             <TextView
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/app_header"
                 android:textColor="#82AAFF"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
-                android:textSize="18sp"
-                android:letterSpacing="0.1"
-                android:gravity="start" />
+                android:textSize="16sp"
+                android:letterSpacing="0.15"
+                android:layout_marginEnd="16dp" />
 
-            <!-- Панель кнопок -->
+            <!-- Вертикальный разделитель -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:background="#2C2F33"
+                android:layout_marginEnd="8dp" />
+
+            <!-- Скроллируемая панель кнопок -->
             <HorizontalScrollView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:scrollbars="none"
                 android:clipToPadding="false"
                 android:paddingStart="4dp"
-                android:paddingEnd="4dp">
+                android:paddingEnd="4dp"
+                android:requiresFadingEdge="horizontal"
+                android:fadingEdgeLength="24dp">
                 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -51,149 +64,350 @@
                     <Button 
                         android:id="@+id/btnClear" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
                         android:text="@string/btn_clear" 
-                        android:backgroundTint="#3A3F46" 
-                        android:textColor="#C3E88D" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#A9B7C6"
+                        android:backgroundTint="#1E1E1E"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
                         
                     <Button 
                         android:id="@+id/btnExecute" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
                         android:text="@string/btn_execute" 
-                        android:backgroundTint="#2D4A3E" 
-                        android:textColor="#C3E88D" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#C3E88D"
+                        android:backgroundTint="#1A3324"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
                         
                     <Button 
                         android:id="@+id/btnStop" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
                         android:text="@string/btn_stop" 
-                        android:backgroundTint="#4A2D2D" 
-                        android:textColor="#FF5370" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#FF5370"
+                        android:backgroundTint="#331A1A"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
+
+                    <!-- Разделитель групп кнопок -->
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="20dp"
+                        android:background="#2C2F33"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="8dp" />
                         
                     <Button 
                         android:id="@+id/btnOpen" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
                         android:text="@string/btn_open" 
-                        android:backgroundTint="#3A3F46" 
-                        android:textColor="#C3E88D" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#A9B7C6"
+                        android:backgroundTint="#1E1E1E"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
                         
                     <Button 
                         android:id="@+id/btnShortcut" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
                         android:text="@string/btn_shortcut" 
-                        android:backgroundTint="#3A3F46" 
-                        android:textColor="#C3E88D" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#A9B7C6"
+                        android:backgroundTint="#1E1E1E"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
 
                     <Button 
                         android:id="@+id/btnExit" 
                         android:layout_width="wrap_content" 
-                        android:layout_height="48dp" 
+                        android:layout_height="40dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
                         android:text="@string/btn_exit" 
-                        android:backgroundTint="#4A2D2D" 
-                        android:textColor="#FF5370" 
-                        android:layout_margin="4dp" 
-                        style="?android:attr/borderlessButtonStyle"/>
+                        android:textColor="#FF5370"
+                        android:backgroundTint="#331A1A"
+                        android:fontFamily="monospace"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:letterSpacing="0.05"
+                        android:layout_marginEnd="4dp" 
+                        style="?android:attr/borderlessButtonStyle"
+                        android:stateListAnimator="@null" />
                 </LinearLayout>
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Основное поле ввода скрипта -->
-        <EditText
-            android:id="@+id/etScript"
+        <!-- Тонкая граница под тулбаром -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1F1F1F" />
+
+        <!-- 2. MAIN EDITOR AREA (Рабочая область) -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="#1C1C1C"
-            android:textColor="#EEFFFF"
-            android:textColorHint="#546E7A"
-            android:fontFamily="monospace"
-            android:textSize="14sp"
-            android:gravity="top|start"
-            android:padding="12dp"
-            android:hint="@string/hint_script"
-            android:inputType="textMultiLine|textNoSuggestions"
-            android:importantForAutofill="no"
-            android:freezesText="false"
-            android:saveEnabled="false"
-            android:scrollbars="vertical"
-            android:fadeScrollbars="false"
-            android:typeface="monospace" />
+            android:orientation="horizontal"
+            android:background="#0A0A0A">
+
+            <!-- Имитация Gutter (поля для номеров строк) -->
+            <View
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:background="#0A0A0A" />
+            
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#2C2F33" />
+
+            <!-- Поле ввода кода -->
+            <EditText
+                android:id="@+id/etScript"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="#0F0F0F"
+                android:textColor="#EEFFFF"
+                android:textColorHint="#4A4A4A"
+                android:fontFamily="monospace"
+                android:textSize="14sp"
+                android:lineSpacingExtra="6dp"
+                android:gravity="top|start"
+                android:padding="16dp"
+                android:hint="@string/hint_script"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:importantForAutofill="no"
+                android:freezesText="false"
+                android:saveEnabled="false"
+                android:scrollbars="vertical"
+                android:fadeScrollbars="false"
+                android:scrollbarThumbVertical="@android:color/darker_gray"
+                android:typeface="monospace" />
+        </LinearLayout>
+
+        <!-- Тонкая граница над статус-баром -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1F1F1F" />
+
+        <!-- 3. STATUS BAR (Нижняя информационная панель IDE) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#151515"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="UTF-8"
+                android:textColor="#546E7A"
+                android:fontFamily="monospace"
+                android:textSize="10sp"
+                android:letterSpacing="0.05" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="12dp"
+                android:background="#2C2F33"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PERCEPTRON"
+                android:textColor="#546E7A"
+                android:fontFamily="monospace"
+                android:textSize="10sp"
+                android:letterSpacing="0.05" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="12dp"
+                android:background="#2C2F33"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ready"
+                android:textColor="#82AAFF"
+                android:fontFamily="monospace"
+                android:textSize="10sp"
+                android:letterSpacing="0.05" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="v5.0.1"
+                android:textColor="#546E7A"
+                android:fontFamily="monospace"
+                android:textSize="10sp"
+                android:letterSpacing="0.05" />
+        </LinearLayout>
+
     </LinearLayout>
 
-    <!-- Слой затемнения -->
+    <!-- СЛОЙ ЗАТЕМНЕНИЯ -->
     <View
         android:id="@+id/dimView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F00A0A0A" 
+        android:background="#E6000000" 
         android:visibility="gone"
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- ОВЕРЛЕЙ РЕЗУЛЬТАТОВ -->
-    <LinearLayout
-        android:id="@+id/overlayResult"
+    <!-- ОВЕРЛЕЙ РЕЗУЛЬТАТОВ (Модальное окно консоли) -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center" 
-        android:layout_margin="24dp"
-        android:background="#0A0A0A"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:visibility="gone"
-        android:elevation="12dp"
-        android:outlineProvider="background"
-        android:clipToOutline="true">
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:padding="24dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
-        <TextView
+        <LinearLayout
+            android:id="@+id/overlayResult"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/result_header"
-            android:textColor="#C3E88D"
-            android:textStyle="bold"
-            android:fontFamily="monospace"
-            android:textSize="12sp"
-            android:letterSpacing="0.05"
-            android:layout_marginBottom="12dp"/>
+            android:layout_gravity="center"
+            android:background="#121212"
+            android:orientation="vertical"
+            android:padding="24dp"
+            android:visibility="gone"
+            android:elevation="16dp"
+            android:outlineProvider="background"
+            android:clipToOutline="true">
+            
+            <!-- Заголовок оверлея -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
 
-        <TextView
-            android:id="@+id/tvResultContent"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="300dp"
-            android:scrollbars="vertical"
-            android:textColor="#C3E88D"
-            android:fontFamily="monospace"
-            android:textSize="15sp"
-            android:freezesText="false"
-            android:saveEnabled="false"
-            android:background="#2C2F33"
-            android:padding="12dp"
-            android:textIsSelectable="true" />
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="20dp"
+                    android:background="#C3E88D"
+                    android:layout_marginEnd="12dp" />
 
-        <Button
-            android:id="@+id/btnCloseResult"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="16dp"
-            android:text="@string/btn_close"
-            android:backgroundTint="#3A3F46"
-            android:textColor="#C3E88D"
-            style="?android:attr/borderlessButtonStyle"/>
-    </LinearLayout>
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/result_header"
+                    android:textColor="#C3E88D"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.1"
+                    android:textAllCaps="true" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OUTPUT"
+                    android:textColor="#546E7A"
+                    android:fontFamily="monospace"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.1" />
+            </LinearLayout>
+
+            <!-- Содержимое консоли -->
+            <TextView
+                android:id="@+id/tvResultContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="150dp"
+                android:maxHeight="400dp"
+                android:scrollbars="vertical"
+                android:textColor="#EEFFFF"
+                android:fontFamily="monospace"
+                android:textSize="14sp"
+                android:lineSpacingExtra="4dp"
+                android:freezesText="false"
+                android:saveEnabled="false"
+                android:background="#0A0A0A"
+                android:padding="16dp"
+                android:textIsSelectable="true"
+                android:scrollbarThumbVertical="@android:color/darker_gray" />
+
+            <!-- Кнопка закрытия -->
+            <Button
+                android:id="@+id/btnCloseResult"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="20dp"
+                android:text="@string/btn_close"
+                android:textColor="#A9B7C6"
+                android:backgroundTint="#1E1E1E"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:letterSpacing="0.1"
+                style="?android:attr/borderlessButtonStyle"
+                android:stateListAnimator="@null" />
+        </LinearLayout>
+    </FrameLayout>
 
 </FrameLayout>
