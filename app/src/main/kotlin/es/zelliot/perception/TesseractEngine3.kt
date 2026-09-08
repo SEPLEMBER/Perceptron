@@ -66,7 +66,7 @@ enum class TokenType3 {
     NUMBER, STRING, IDENTIFIER, PLUS, MINUS, MUL, DIV, INT_DIV, MOD, POW, XOR,
     LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, COMMA, PIPE, ASSIGN, COLON, ARROW,
     GT, LT, GTE, LTE, EQ, NEQ, AND, OR,
-    FN, VAL, CONST, RETURN, ASSERT, IF, THEN, ELSE, WHILE, DO, SEPARATOR, EXIT, EOF
+    FN, VAL, CONST, RETURN, ASSERT, IF, THEN, ELSE, WHILE, DO, FOR, IN, TO, SEPARATOR, EXIT, EOF
 }
 data class Token3(val type: TokenType3, val value: String, val line: Int)
 
@@ -116,7 +116,7 @@ class Lexer3(private val source: String) {
     }
     private fun readNumber() { val start = pos; while (pos < source.length && (currentChar().isDigit() || currentChar() == '.')) advance(); if (currentChar() == 'e' || currentChar() == 'E') { advance(); if (currentChar() == '+' || currentChar() == '-') advance(); while (pos < source.length && currentChar().isDigit()) advance() }; addToken(TokenType3.NUMBER, source.substring(start, pos)) }
     private fun readString() { advance(); val start = pos; while (pos < source.length && currentChar() != '"') { if (currentChar() == '\\' && peek() == '"') advance(); advance() }; addToken(TokenType3.STRING, source.substring(start, pos)); if (pos < source.length && currentChar() == '"') advance() }
-    private fun readIdentifier() { val start = pos; while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance(); var word = source.substring(start, pos); word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X'); if (word == "ate") throw TesseractError3("Typo: 'ate'", line); val type = when (word.lowercase()) { "fn" -> TokenType3.FN; "val", "var" -> TokenType3.VAL; "const" -> TokenType3.CONST; "return" -> TokenType3.RETURN; "assert" -> TokenType3.ASSERT; "if" -> TokenType3.IF; "then" -> TokenType3.THEN; "else" -> TokenType3.ELSE; "while" -> TokenType3.WHILE; "do" -> TokenType3.DO; "exit" -> TokenType3.EXIT; "and" -> TokenType3.AND; "or" -> TokenType3.OR; else -> TokenType3.IDENTIFIER }; addToken(type, word) }
+    private fun readIdentifier() { val start = pos; while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance(); var word = source.substring(start, pos); word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X'); if (word == "ate") throw TesseractError3("Typo: 'ate'", line); val type = when (word.lowercase()) { "fn" -> TokenType3.FN; "val", "var" -> TokenType3.VAL; "const" -> TokenType3.CONST; "return" -> TokenType3.RETURN; "assert" -> TokenType3.ASSERT; "if" -> TokenType3.IF; "then" -> TokenType3.THEN; "else" -> TokenType3.ELSE; "while" -> TokenType3.WHILE; "do" -> TokenType3.DO; "for" -> TokenType3.FOR; "in" -> TokenType3.IN; "to" -> TokenType3.TO; "exit" -> TokenType3.EXIT; "and" -> TokenType3.AND; "or" -> TokenType3.OR; else -> TokenType3.IDENTIFIER }; addToken(type, word) }
 }
 
 sealed class Node3 { abstract val line: Int }
@@ -140,6 +140,9 @@ sealed class Stmt3 : Node3() {
     data class AssertStmt(val condition: Expr3, override val line: Int) : Stmt3()
     data class ReturnStmt(val value: Expr3?, override val line: Int) : Stmt3()
     data class WhileStmt(val cond: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
+    // НОВЫЕ КОНСТРУКТЫ FOR
+    data class ForRangeStmt(val varName: String, val start: Expr3, val end: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
+    data class ForInStmt(val varName: String, val collection: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class ExprStmt(val expr: Expr3, override val line: Int) : Stmt3()
     data class ExitStmt(val delayMs: Long, override val line: Int) : Stmt3()
     object SeparatorStmt : Stmt3() { override val line: Int = 0 }
@@ -164,6 +167,7 @@ class Parser3(private val tokens: List<Token3>) {
             TokenType3.ASSERT -> { advance(); Stmt3.AssertStmt(parseExpression(), peek().line) }
             TokenType3.RETURN -> { advance(); val hasValue = peek().type != TokenType3.EOF && peek().type != TokenType3.RBRACE && peek().type != TokenType3.SEPARATOR; Stmt3.ReturnStmt(if (hasValue) parseExpression() else null, current.line) }
             TokenType3.WHILE -> parseWhile()
+            TokenType3.FOR -> parseFor() // НОВЫЙ ПАРСИНГ FOR
             TokenType3.EXIT -> { advance(); val delay = if (peek().type == TokenType3.NUMBER) advance().value.toLong() else 0L; Stmt3.ExitStmt(delay, current.line) }
             TokenType3.VAL, TokenType3.CONST -> { advance(); val nameToken = expect(TokenType3.IDENTIFIER); if (peek().type == TokenType3.COLON) { advance(); advance() }; expect(TokenType3.ASSIGN); Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line) }
             TokenType3.IDENTIFIER -> {
@@ -185,6 +189,24 @@ class Parser3(private val tokens: List<Token3>) {
     }
 
     private fun parseWhile(): Stmt3 { advance(); val cond = parseExpression(); expect(TokenType3.DO); return Stmt3.WhileStmt(cond, parseBlock(), cond.line) }
+    
+    // НОВАЯ ФУНКЦИЯ ПАРСИНГА FOR
+    private fun parseFor(): Stmt3 {
+        advance() // consume FOR
+        val varName = expect(TokenType3.IDENTIFIER).value
+        expect(TokenType3.IN)
+        val firstExpr = parseExpression()
+        if (peek().type == TokenType3.TO) {
+            advance() // consume TO
+            val secondExpr = parseExpression()
+            expect(TokenType3.DO)
+            return Stmt3.ForRangeStmt(varName, firstExpr, secondExpr, parseBlock(), firstExpr.line)
+        } else {
+            expect(TokenType3.DO)
+            return Stmt3.ForInStmt(varName, firstExpr, parseBlock(), firstExpr.line)
+        }
+    }
+    
     private fun parseFunctionDef(): Stmt3 { advance(); val nameToken = expect(TokenType3.IDENTIFIER); expect(TokenType3.LPAREN); val params = mutableListOf<String>(); if (peek().type != TokenType3.RPAREN) { do { params.add(expect(TokenType3.IDENTIFIER).value); if (peek().type == TokenType3.COLON) { advance(); advance() }; if (peek().type == TokenType3.COMMA) advance() else break } while (peek().type != TokenType3.RPAREN) }; expect(TokenType3.RPAREN); if (peek().type == TokenType3.ARROW) { advance(); advance() }; return Stmt3.FunctionDef(nameToken.value, params, parseBlock(), nameToken.line) }
     private fun parseBlock(): List<Stmt3> { expect(TokenType3.LBRACE); val stmts = mutableListOf<Stmt3>(); while (peek().type != TokenType3.RBRACE && peek().type != TokenType3.EOF) { if (peek().type == TokenType3.SEPARATOR) advance() else stmts.add(parseStatement()) }; expect(TokenType3.RBRACE); return stmts }
 
@@ -231,7 +253,6 @@ class Evaluator3(private val context: Context) {
     private val userFunctions = mutableMapOf<String, Stmt3.FunctionDef>()
     private val callStack = mutableListOf<String>()
     
-    // ИЗМЕНЕНИЕ 1: results теперь поле класса, чтобы print() мог в него писать
     private val results = mutableListOf<String>()
     
     private var recursionDepth = 0
@@ -265,12 +286,21 @@ class Evaluator3(private val context: Context) {
                     is Stmt3.SeparatorStmt -> results.add("---")
                     is Stmt3.FunctionDef -> {}
                     is Stmt3.Assignment -> { if (!constantOverrides.containsKey(stmt.name)) env.set(stmt.name, eval(stmt.value)) }
-                    else -> { val res = evalStmt(stmt); if (res != null) results.add(res.displayString()) }
+                    else -> { 
+                        // ИСПРАВЛЕНИЕ БАГА С NULL: добавлена проверка !is TValue3.TNull
+                        val res = evalStmt(stmt)
+                        if (res != null && res !is TValue3.TNull) results.add(res.displayString()) 
+                    }
                 }
             }
-        } catch (e: ReturnValue3) { if (e.value != null) results.add(e.value.displayString()) } 
-        catch (e: TesseractExitCommand3) { exitDelayMs = e.delayMs } 
-        catch (e: TesseractOpenActCommand3) { throw e }
+        } catch (e: ReturnValue3) { 
+            // ИСПРАВЛЕНИЕ БАГА С NULL: добавлена проверка !is TValue3.TNull
+            if (e.value != null && e.value !is TValue3.TNull) results.add(e.value.displayString()) 
+        } catch (e: TesseractExitCommand3) { 
+            exitDelayMs = e.delayMs 
+        } catch (e: TesseractOpenActCommand3) { 
+            throw e 
+        }
         
         val output = if (results.isEmpty()) "void" else results.joinToString("\n")
         return if (exitDelayMs != null) "__TESSERACT_EXIT__:$exitDelayMs\n$output" else "Success:\n$output"
@@ -295,6 +325,44 @@ class Evaluator3(private val context: Context) {
                 if (!eval(node.cond).toBoolean()) break
                 for (stmt in node.body) evalStmt(stmt)
                 if (++iterations > 1_000_000) throw TesseractError3("While loop iteration limit (1M)", node.line, callStack.toList())
+            }
+            null
+        }
+        // НОВАЯ ЛОГИКА ВЫЧИСЛЕНИЯ FOR (ДИАПАЗОН)
+        is Stmt3.ForRangeStmt -> {
+            var iterations = 0
+            val startTime = System.currentTimeMillis()
+            val startVal = eval(node.start).toLong()
+            val endVal = eval(node.end).toLong()
+            val step = if (startVal <= endVal) 1L else -1L
+            
+            var i = startVal
+            while (if (step > 0) i <= endVal else i >= endVal) {
+                if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
+                env.set(node.varName, TValue3.TInt(i))
+                for (stmt in node.body) evalStmt(stmt)
+                i += step
+                if (++iterations > 1_000_000) throw TesseractError3("For loop iteration limit (1M)", node.line, callStack.toList())
+            }
+            null
+        }
+        // НОВАЯ ЛОГИКА ВЫЧИСЛЕНИЯ FOR (КОЛЛЕКЦИЯ)
+        is Stmt3.ForInStmt -> {
+            var iterations = 0
+            val startTime = System.currentTimeMillis()
+            val collection = eval(node.collection)
+            
+            val items = when (collection) {
+                is TValue3.TArray -> collection.items
+                is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }
+                else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList())
+            }
+            
+            for (item in items) {
+                if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
+                env.set(node.varName, item)
+                for (stmt in node.body) evalStmt(stmt)
+                if (++iterations > 1_000_000) throw TesseractError3("For-in loop iteration limit (1M)", node.line, callStack.toList())
             }
             null
         }
@@ -367,7 +435,6 @@ class Evaluator3(private val context: Context) {
         
         val result = try {
             when (node.name) {
-                // ИЗМЕНЕНИЕ 2: Добавлена функция print()
                 "print" -> {
                     val output = args.joinToString(" ") { it.displayString() }
                     results.add(output)
@@ -386,7 +453,6 @@ class Evaluator3(private val context: Context) {
                 "precise_eq" -> { if (args.size < 2) throw TesseractError3("precise_eq requires two arguments", node.line); TValue3.TBool(abs(args[0].toDouble() - args[1].toDouble()) < 1e-12) }
                 "round_exact" -> { if (args.size < 2) throw TesseractError3("round_exact requires value and decimals", node.line); val value = args[0].toDouble(); val scale = args[1].toLong().toInt(); val bd = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP); TValue3.TNum(bd.toDouble()) }
                 
-                // ИЗМЕНЕНИЕ 3: Явные BigDecimal функции для точных вычислений по запросу
                 "bd_add" -> { if (args.size < 2) throw TesseractError3("bd_add requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) + BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
                 "bd_sub" -> { if (args.size < 2) throw TesseractError3("bd_sub requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) - BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
                 "bd_mul" -> { if (args.size < 2) throw TesseractError3("bd_mul requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) * BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
@@ -394,7 +460,7 @@ class Evaluator3(private val context: Context) {
                     if (args.size < 2) throw TesseractError3("bd_div requires at least two arguments", node.line)
                     val a = BigDecimal.valueOf(args[0].toDouble())
                     val b = BigDecimal.valueOf(args[1].toDouble())
-                    val scale = if (args.size >= 3) args[2].toLong().toInt() else 2 // По умолчанию 2 знака (как для денег)
+                    val scale = if (args.size >= 3) args[2].toLong().toInt() else 2
                     TValue3.TNum(a.divide(b, scale, RoundingMode.HALF_UP).toDouble())
                 }
                 "bd_sum" -> {
