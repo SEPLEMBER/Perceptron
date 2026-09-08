@@ -4,6 +4,8 @@ import android.content.Context
 import kotlin.math.*
 import java.security.SecureRandom
 import java.util.Random
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 // ============================================================================
 // TESSERACT ENGINE 3: EXCEPTIONS AND DATA TYPES
@@ -11,11 +13,11 @@ import java.util.Random
 
 /** Custom exception for interpreter errors. */
 class TesseractError3(
-    message: String, // Убрано 'val', чтобы не скрывать свойство суперкласса
+    message: String, 
     val line: Int, 
     val callStack: List<String> = emptyList(), 
     vararg val formatArgs: Any
-) : Exception(message) // Сообщение корректно передается в суперкласс Exception
+) : Exception(message)
 
 class ReturnValue3(val value: TValue3?) : Exception()
 class TesseractExitCommand3(val delayMs: Long) : Exception()
@@ -26,7 +28,6 @@ sealed class TValue3 {
     data class TInt(val value: Long) : TValue3()
     data class TStr(val value: String) : TValue3()
     
-    // НОВЫЕ ТИПЫ для Engine3
     data class TBool(val value: Boolean) : TValue3()
     data class TArray(val items: List<TValue3>) : TValue3()
     object TNull : TValue3()
@@ -211,7 +212,6 @@ class Lexer3(private val source: String) {
         while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance()
         var word = source.substring(start, pos)
         
-        // Homoglyph normalization
         word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V')
                    .replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O')
                    .replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C')
@@ -257,7 +257,6 @@ sealed class Expr3 : Node3() {
     data class Pipeline(val left: Expr3, val right: Expr3, override val line: Int) : Expr3()
     data class IfElse(val cond: Expr3, val thenExpr: Expr3, val elseExpr: Expr3, override val line: Int) : Expr3()
     
-    // НОВЫЕ УЗЛЫ AST
     data class ArrayLit(val elements: List<Expr3>, override val line: Int) : Expr3()
     data class IndexAccess(val target: Expr3, val index: Expr3, override val line: Int) : Expr3()
 }
@@ -474,10 +473,9 @@ class Parser3(private val tokens: List<Token3>) {
             else -> throw TesseractError3("Unexpected token: ${token.value}", token.line)
         }
 
-        // Постфиксная индексация (например, arr[0] или "str"[1])
         while (peek().type == TokenType3.LBRACKET) {
-            val bracketLine = peek().line // Фиксируем строку скобки для точного сообщения об ошибке
-            advance() // consume '['
+            val bracketLine = peek().line
+            advance() 
             val indexExpr = parseExpression()
             expect(TokenType3.RBRACKET)
             expr = Expr3.IndexAccess(expr, indexExpr, bracketLine)
@@ -516,9 +514,14 @@ class Evaluator3(private val context: Context) {
         env.set("PI", TValue3.TNum(PI))
         env.set("E", TValue3.TNum(E))
         env.set("PHI", TValue3.TNum(1.618033988749895))
+        
+        // ИСПРАВЛЕНО: Регистрируем и верхний, и нижний регистр для удобства
         env.set("TRUE", TValue3.TBool(true))
         env.set("FALSE", TValue3.TBool(false))
         env.set("NULL", TValue3.TNull)
+        env.set("true", TValue3.TBool(true))
+        env.set("false", TValue3.TBool(false))
+        env.set("null", TValue3.TNull)
 
         env.set("C", TValue3.TNum(299792458.0))
         env.set("G", TValue3.TNum(9.81))
@@ -702,7 +705,7 @@ class Evaluator3(private val context: Context) {
             is TValue3.TNum -> Expr3.NumLit(leftVal.value, node.line)
             is TValue3.TInt -> Expr3.IntLit(leftVal.toLong(), node.line)
             is TValue3.TStr -> Expr3.StrLit(leftVal.value, node.line)
-            is TValue3.TBool -> Expr3.VarRef(if (leftVal.value) "TRUE" else "FALSE", node.line) // Исправлено: верхний регистр для совпадения с env
+            is TValue3.TBool -> Expr3.VarRef(if (leftVal.value) "true" else "false", node.line) // Исправлено на lower-case
             else -> throw TesseractError3("Pipeline left side must be primitive", node.line)
         }
         return if (node.right is Expr3.FuncCall) {
@@ -799,6 +802,22 @@ class Evaluator3(private val context: Context) {
                     }
                     TValue3.TStr(typeStr)
                 }
+                
+                // НОВЫЕ ФУНКЦИИ BigDecimal
+                "round_exact" -> {
+                    if (args.size < 2) throw TesseractError3("round_exact requires value and decimals", node.line)
+                    val value = args[0].toDouble()
+                    val scale = args[1].toLong().toInt()
+                    val bd = BigDecimal(value.toString()).setScale(scale, RoundingMode.HALF_UP)
+                    TValue3.TNum(bd.toDouble())
+                }
+                "precise_eq" -> {
+                    if (args.size < 2) throw TesseractError3("precise_eq requires two arguments", node.line)
+                    val a = BigDecimal(args[0].toDouble().toString())
+                    val b = BigDecimal(args[1].toDouble().toString())
+                    TValue3.TBool(a.compareTo(b) == 0)
+                }
+
                 "sum" -> TValue3.TNum(if (getNumericArgs().isEmpty()) 0.0 else getNumericArgs().sum())
                 "avg" -> {
                     val list = getNumericArgs()
