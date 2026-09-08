@@ -402,7 +402,7 @@ class TesseractActivity : AppCompatActivity() {
         private val stringPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|`[^`]*`)")
         private val commentPattern = Pattern.compile("(//.*|/\\*[\\s\\S]*?\\*/|#.*)")
         private val numberPattern = Pattern.compile("\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b")
-        private val operatorPattern = Pattern.compile("(==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|\\+=|-=|\\*=|/=|%=)")
+        private val operatorPattern = Pattern.compile("(==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|\\+=|-=|\\*=|/=|%=|\\.)")
 
         private var debounceJob: Job? = null
         private val debounceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
