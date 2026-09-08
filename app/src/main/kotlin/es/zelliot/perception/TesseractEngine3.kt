@@ -11,11 +11,11 @@ import java.util.Random
 
 /** Custom exception for interpreter errors. */
 class TesseractError3(
-    val message: String, 
+    message: String, // Убрано 'val', чтобы не скрывать свойство суперкласса
     val line: Int, 
     val callStack: List<String> = emptyList(), 
     vararg val formatArgs: Any
-) : Exception()
+) : Exception(message) // Сообщение корректно передается в суперкласс Exception
 
 class ReturnValue3(val value: TValue3?) : Exception()
 class TesseractExitCommand3(val delayMs: Long) : Exception()
@@ -476,7 +476,7 @@ class Parser3(private val tokens: List<Token3>) {
 
         // Постфиксная индексация (например, arr[0] или "str"[1])
         while (peek().type == TokenType3.LBRACKET) {
-            val bracketLine = peek().line // ИСПРАВЛЕНО: фиксируем строку скобки, а не первичного токена
+            val bracketLine = peek().line // Фиксируем строку скобки для точного сообщения об ошибке
             advance() // consume '['
             val indexExpr = parseExpression()
             expect(TokenType3.RBRACKET)
@@ -702,7 +702,7 @@ class Evaluator3(private val context: Context) {
             is TValue3.TNum -> Expr3.NumLit(leftVal.value, node.line)
             is TValue3.TInt -> Expr3.IntLit(leftVal.toLong(), node.line)
             is TValue3.TStr -> Expr3.StrLit(leftVal.value, node.line)
-            is TValue3.TBool -> Expr3.VarRef(if (leftVal.value) "TRUE" else "FALSE", node.line) // ИСПРАВЛЕНО: верхний регистр для совпадения с env
+            is TValue3.TBool -> Expr3.VarRef(if (leftVal.value) "TRUE" else "FALSE", node.line) // Исправлено: верхний регистр для совпадения с env
             else -> throw TesseractError3("Pipeline left side must be primitive", node.line)
         }
         return if (node.right is Expr3.FuncCall) {
