@@ -65,7 +65,7 @@ object MathGuard3 {
 enum class TokenType3 {
     NUMBER, STRING, IDENTIFIER, PLUS, MINUS, MUL, DIV, INT_DIV, MOD, POW, XOR,
     LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, COMMA, PIPE, ASSIGN, COLON, ARROW, DOT,
-    GT, LT, GTE, LTE, EQ, NEQ, AND, OR,
+    GT, LT, GTE, LTE, EQ, NEQ, AND, OR, NEGATE,
     FN, VAL, CONST, RETURN, ASSERT, IF, THEN, ELSE, WHILE, DO, FOR, IN, TO, SEPARATOR, EXIT, EOF
 }
 data class Token3(val type: TokenType3, val value: String, val line: Int)
@@ -108,7 +108,7 @@ class Lexer3(private val source: String) {
                 c == ']' -> { addToken(TokenType3.RBRACKET, "]"); advance() }
                 c == ',' -> { addToken(TokenType3.COMMA, ","); advance() }
                 c == ':' -> { addToken(TokenType3.COLON, ":"); advance() }
-                c == '.' -> { addToken(TokenType3.DOT, "."); advance() } // НОВОЕ: поддержка точки
+                c == '.' -> { addToken(TokenType3.DOT, "."); advance() }
                 else -> throw TesseractError3("Unknown character: $c", line)
             }
         }
@@ -118,20 +118,19 @@ class Lexer3(private val source: String) {
 
     private fun readNumber() { val start = pos; while (pos < source.length && (currentChar().isDigit() || currentChar() == '.')) advance(); if (currentChar() == 'e' || currentChar() == 'E') { advance(); if (currentChar() == '+' || currentChar() == '-') advance(); while (pos < source.length && currentChar().isDigit()) advance() }; addToken(TokenType3.NUMBER, source.substring(start, pos)) }
     
-    // ИСПРАВЛЕНИЕ: Полная поддержка escape-последовательностей (\n, \t, \\, \")
     private fun readString() {
-        advance() // Skip opening quote
+        advance()
         val sb = StringBuilder()
         while (pos < source.length && currentChar() != '"') {
             if (currentChar() == '\\') {
-                advance() // Skip backslash
+                advance()
                 when (currentChar()) {
                     'n' -> sb.append('\n')
                     't' -> sb.append('\t')
                     'r' -> sb.append('\r')
                     '\\' -> sb.append('\\')
                     '"' -> sb.append('"')
-                    else -> sb.append(currentChar()) // Fallback for unknown escapes
+                    else -> sb.append(currentChar())
                 }
             } else {
                 sb.append(currentChar())
@@ -139,10 +138,27 @@ class Lexer3(private val source: String) {
             advance()
         }
         addToken(TokenType3.STRING, sb.toString())
-        if (pos < source.length && currentChar() == '"') advance() // Skip closing quote
+        if (pos < source.length && currentChar() == '"') advance()
     }
 
-    private fun readIdentifier() { val start = pos; while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance(); var word = source.substring(start, pos); word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X'); if (word == "ate") throw TesseractError3("Typo: 'ate'", line); val type = when (word.lowercase()) { "fn" -> TokenType3.FN; "val", "var" -> TokenType3.VAL; "const" -> TokenType3.CONST; "return" -> TokenType3.RETURN; "assert" -> TokenType3.ASSERT; "if" -> TokenType3.IF; "then" -> TokenType3.THEN; "else" -> TokenType3.ELSE; "while" -> TokenType3.WHILE; "do" -> TokenType3.DO; "for" -> TokenType3.FOR; "in" -> TokenType3.IN; "to" -> TokenType3.TO; "exit" -> TokenType3.EXIT; "and" -> TokenType3.AND; "or" -> TokenType3.OR; else -> TokenType3.IDENTIFIER }; addToken(type, word) }
+    private fun readIdentifier() { 
+        val start = pos; 
+        while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance(); 
+        var word = source.substring(start, pos); 
+        word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X'); 
+        if (word == "ate") throw TesseractError3("Typo: 'ate'", line); 
+        val type = when (word.lowercase()) { 
+            "fn" -> TokenType3.FN; "val", "var" -> TokenType3.VAL; "const" -> TokenType3.CONST; 
+            "return" -> TokenType3.RETURN; "assert" -> TokenType3.ASSERT; 
+            "if" -> TokenType3.IF; "then" -> TokenType3.THEN; "else" -> TokenType3.ELSE; 
+            "while" -> TokenType3.WHILE; "do" -> TokenType3.DO; "for" -> TokenType3.FOR; 
+            "in" -> TokenType3.IN; "to" -> TokenType3.TO; "exit" -> TokenType3.EXIT; 
+            "and" -> TokenType3.AND; "or" -> TokenType3.OR; 
+            "negate" -> TokenType3.NEGATE // <-- ДОБАВЛЕНО: безопасный синоним для not
+            else -> TokenType3.IDENTIFIER 
+        }
+        addToken(type, word) 
+    }
 }
 
 sealed class Node3 { abstract val line: Int }
@@ -158,13 +174,11 @@ sealed class Expr3 : Node3() {
     data class IfElse(val cond: Expr3, val thenExpr: Expr3, val elseExpr: Expr3, override val line: Int) : Expr3()
     data class ArrayLit(val elements: List<Expr3>, override val line: Int) : Expr3()
     data class IndexAccess(val target: Expr3, val index: Expr3, override val line: Int) : Expr3()
-    // НОВОЕ: Вызов методов через точку (arr.append(x))
     data class MethodCall(val target: Expr3, val methodName: String, val args: List<Expr3>, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
     data class Assignment(val name: String, val value: Expr3, override val line: Int) : Stmt3()
     data class IndexAssignment(val target: Expr3, val index: Expr3, val value: Expr3, override val line: Int) : Stmt3()
-    // НОВОЕ: Деструктуризация val [a, b] = arr
     data class DestructuringAssignment(val names: List<String>, val value: Expr3, override val line: Int) : Stmt3()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class AssertStmt(val condition: Expr3, override val line: Int) : Stmt3()
@@ -200,9 +214,8 @@ class Parser3(private val tokens: List<Token3>) {
             TokenType3.EXIT -> { advance(); val delay = if (peek().type == TokenType3.NUMBER) advance().value.toLong() else 0L; Stmt3.ExitStmt(delay, current.line) }
             TokenType3.VAL, TokenType3.CONST -> {
                 advance()
-                // НОВОЕ: Парсинг деструктуризации val [a, b] = ...
                 if (peek().type == TokenType3.LBRACKET) {
-                    advance() // consume [
+                    advance()
                     val names = mutableListOf<String>()
                     if (peek().type != TokenType3.RBRACKET) {
                         do {
@@ -252,7 +265,13 @@ class Parser3(private val tokens: List<Token3>) {
     private fun parseAddition(): Expr3 { var left = parseMultiplication(); while (peek().type == TokenType3.PLUS || peek().type == TokenType3.MINUS) { left = Expr3.BinaryOp(left, advance().type, parseMultiplication(), left.line) }; return left }
     private fun parseMultiplication(): Expr3 { var left = parseExponentiation(); while (peek().type in listOf(TokenType3.MUL, TokenType3.DIV, TokenType3.INT_DIV, TokenType3.MOD)) { left = Expr3.BinaryOp(left, advance().type, parseExponentiation(), left.line) }; return left }
     private fun parseExponentiation(): Expr3 { val base = parseUnary(); return if (peek().type == TokenType3.POW) { advance(); Expr3.BinaryOp(base, TokenType3.POW, parseExponentiation(), base.line) } else base }
-    private fun parseUnary(): Expr3 { return if (peek().type == TokenType3.MINUS || peek().type == TokenType3.PLUS) { Expr3.UnaryOp(advance().type, parseUnary(), peek().line) } else parsePrimary() }
+    
+    // ДОБАВЛЕНО: поддержка negate в унарных операторах
+    private fun parseUnary(): Expr3 { 
+        return if (peek().type == TokenType3.MINUS || peek().type == TokenType3.PLUS || peek().type == TokenType3.NEGATE) { 
+            Expr3.UnaryOp(advance().type, parseUnary(), peek().line) 
+        } else parsePrimary() 
+    }
     
     private fun parsePrimary(): Expr3 {
         val token = peek()
@@ -266,13 +285,12 @@ class Parser3(private val tokens: List<Token3>) {
             else -> throw TesseractError3("Unexpected token: ${token.value}", token.line)
         }
         
-        // НОВОЕ: Поддержка цепочек вызовов: arr[0].append(x) или arr.slice(0, 2)
         while (peek().type == TokenType3.LBRACKET || peek().type == TokenType3.DOT) {
             if (peek().type == TokenType3.LBRACKET) {
                 val bracketLine = peek().line; advance(); val indexExpr = parseExpression(); expect(TokenType3.RBRACKET)
                 expr = Expr3.IndexAccess(expr, indexExpr, bracketLine)
             } else if (peek().type == TokenType3.DOT) {
-                advance() // consume DOT
+                advance()
                 val methodName = expect(TokenType3.IDENTIFIER).value
                 expect(TokenType3.LPAREN)
                 val args = mutableListOf<Expr3>()
@@ -346,7 +364,6 @@ class Evaluator3(private val context: Context) {
         return if (exitDelayMs != null) "__TESSERACT_EXIT__:$exitDelayMs\n$output" else "Success:\n$output"
     }
 
-    // Вспомогательная функция для обработки отрицательных индексов
     private fun resolveIndex(targetSize: Int, index: Int, line: Int): Int {
         val actual = if (index < 0) targetSize + index else index
         if (actual < 0 || actual >= targetSize) throw TesseractError3("Index out of bounds: $index (size: $targetSize)", line, callStack.toList())
@@ -357,7 +374,6 @@ class Evaluator3(private val context: Context) {
         is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
         is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
         is Stmt3.Assignment -> { env.set(node.name, eval(node.value)); null }
-        // НОВОЕ: Деструктуризация
         is Stmt3.DestructuringAssignment -> {
             val value = eval(node.value)
             if (value is TValue3.TArray) {
@@ -426,7 +442,22 @@ class Evaluator3(private val context: Context) {
         is Expr3.IntLit -> TValue3.TInt(node.value)
         is Expr3.StrLit -> TValue3.TStr(node.value)
         is Expr3.VarRef -> env.get(node.name) ?: throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
-        is Expr3.UnaryOp -> { val v = eval(node.operand).toDouble(); MathGuard3.checkOverflow(v, node.line); if (node.op == TokenType3.MINUS) TValue3.TNum(-v) else TValue3.TNum(v) }
+        is Expr3.UnaryOp -> { 
+            // ДОБАВЛЕНО: обработка negate
+            if (node.op == TokenType3.MINUS) {
+                val v = eval(node.operand).toDouble()
+                MathGuard3.checkOverflow(v, node.line)
+                TValue3.TNum(-v) 
+            } else if (node.op == TokenType3.PLUS) {
+                val v = eval(node.operand).toDouble()
+                MathGuard3.checkOverflow(v, node.line)
+                TValue3.TNum(v)
+            } else if (node.op == TokenType3.NEGATE) {
+                TValue3.TBool(!eval(node.operand).toBoolean())
+            } else {
+                TValue3.TNum(eval(node.operand).toDouble())
+            }
+        }
         is Expr3.IfElse -> { if (eval(node.cond).toBoolean()) eval(node.thenExpr) else eval(node.elseExpr) }
         is Expr3.BinaryOp -> evalBinaryOp(node)
         is Expr3.Pipeline -> evalPipeline(node)
@@ -446,7 +477,6 @@ class Evaluator3(private val context: Context) {
                 else -> throw TesseractError3("Cannot index type: ${target::class.simpleName}", node.line, callStack.toList())
             }
         }
-        // НОВОЕ: Вызов методов (arr.append(x), arr.pop(), arr.slice(start, end))
         is Expr3.MethodCall -> {
             val target = eval(node.target)
             val args = node.args.map { eval(it) }
@@ -485,11 +515,41 @@ class Evaluator3(private val context: Context) {
         val left = eval(node.left); val right = eval(node.right)
         if (node.op == TokenType3.AND) return TValue3.TBool(left.toBoolean() && right.toBoolean())
         if (node.op == TokenType3.OR) return TValue3.TBool(left.toBoolean() || right.toBoolean())
+        
+        // Умное сравнение типов (Строки, Булевы, Числа)
         if (node.op in listOf(TokenType3.GT, TokenType3.LT, TokenType3.GTE, TokenType3.LTE, TokenType3.EQ, TokenType3.NEQ)) {
-            val l = left.toDouble(); val r = right.toDouble()
-            val res = when (node.op) { TokenType3.GT -> l > r; TokenType3.LT -> l < r; TokenType3.GTE -> l >= r; TokenType3.LTE -> l <= r; TokenType3.EQ -> abs(l - r) < 1e-9; TokenType3.NEQ -> abs(l - r) >= 1e-9; else -> false }
+            val res = when (node.op) {
+                TokenType3.EQ -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value == right.value
+                    else if (left is TValue3.TBool && right is TValue3.TBool) left.value == right.value
+                    else abs(left.toDouble() - right.toDouble()) < 1e-9
+                }
+                TokenType3.NEQ -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value != right.value
+                    else if (left is TValue3.TBool && right is TValue3.TBool) left.value != right.value
+                    else abs(left.toDouble() - right.toDouble()) >= 1e-9
+                }
+                TokenType3.GT -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value > right.value
+                    else left.toDouble() > right.toDouble()
+                }
+                TokenType3.LT -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value < right.value
+                    else left.toDouble() < right.toDouble()
+                }
+                TokenType3.GTE -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value >= right.value
+                    else left.toDouble() >= right.toDouble()
+                }
+                TokenType3.LTE -> {
+                    if (left is TValue3.TStr && right is TValue3.TStr) left.value <= right.value
+                    else left.toDouble() <= right.toDouble()
+                }
+                else -> false
+            }
             return TValue3.TBool(res)
         }
+        
         if (node.op == TokenType3.XOR) { if (left is TValue3.TInt && right is TValue3.TInt) return TValue3.TInt(left.value xor right.value); throw TesseractError3("XOR requires integers", node.line, callStack.toList()) }
         return when (node.op) {
             TokenType3.PLUS -> { if (left is TValue3.TStr || right is TValue3.TStr) TValue3.TStr(left.displayString() + right.displayString()); else if (left is TValue3.TArray && right is TValue3.TArray) TValue3.TArray((left.items + right.items).toMutableList()); else TValue3.TNum(left.toDouble() + right.toDouble()) }
