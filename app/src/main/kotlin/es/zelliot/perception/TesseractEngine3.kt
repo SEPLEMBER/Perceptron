@@ -190,7 +190,6 @@ sealed class Expr3 : Node3() {
     data class IndexAccess(val target: Expr3, val index: Expr3, override val line: Int) : Expr3()
     data class MethodCall(val target: Expr3, val methodName: String, val args: List<Expr3>, override val line: Int) : Expr3()
     data class AnonymousFunc(val params: List<String>, val body: List<Stmt3>, override val line: Int) : Expr3()
-    // НОВОЕ: return как выражение (позволяет использовать return внутри if, присваиваний и т.д.)
     data class ReturnExpr(val value: Expr3?, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
@@ -338,7 +337,6 @@ class Parser3(private val tokens: List<Token3>) {
                 expect(TokenType3.RBRACE)
                 Expr3.AnonymousFunc(params, body, token.line)
             }
-            // НОВОЕ: Поддержка return как выражения (работает как функция)
             TokenType3.RETURN -> {
                 advance()
                 val hasValue = peek().type != TokenType3.RBRACE && peek().type != TokenType3.RBRACKET && 
@@ -380,10 +378,28 @@ class Parser3(private val tokens: List<Token3>) {
 // TESSERACT ENGINE 3: EVALUATOR
 // ============================================================================
 
+// 🔥 ИСПРАВЛЕНО: Environment3 теперь корректно обновляет переменные в замыканиях
 class Environment3(private val parent: Environment3? = null) {
     private val values = mutableMapOf<String, TValue3>()
+    
     fun get(name: String): TValue3? = values[name] ?: parent?.get(name)
-    fun set(name: String, value: TValue3) { values[name] = value }
+    
+    fun has(name: String): Boolean = values.containsKey(name) || (parent?.has(name) ?: false)
+    
+    fun set(name: String, value: TValue3) {
+        // Если переменная уже существует в текущем или родительском скоупе, обновляем её там
+        if (has(name)) {
+            if (values.containsKey(name)) {
+                values[name] = value
+            } else {
+                parent?.set(name, value)
+            }
+        } else {
+            // Иначе создаем новую в текущем скоупе
+            values[name] = value
+        }
+    }
+    
     fun createChild(): Environment3 = Environment3(this)
 }
 
@@ -577,7 +593,6 @@ class Evaluator3(private val context: Context) {
             is Expr3.FuncCall -> evalFuncCall(node)
             is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
             is Expr3.AnonymousFunc -> TValue3.TFunction(node.params, node.body, env)
-            // НОВОЕ: Вычисление return как выражения (бросает исключение ReturnValue3)
             is Expr3.ReturnExpr -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
             is Expr3.IndexAccess -> {
                 val target = eval(node.target)
@@ -784,13 +799,14 @@ class Evaluator3(private val context: Context) {
                 "floor" -> TValue3.TInt(floor(args[0].toDouble()).toLong()); "ceil" -> TValue3.TInt(ceil(args[0].toDouble()).toLong()); "round" -> TValue3.TInt(round(args[0].toDouble()).toLong())
                 "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]; "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
                 "rev" -> when (val arg = args[0]) { is TValue3.TInt -> TValue3.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L); is TValue3.TStr -> TValue3.TStr(arg.value.reversed()); else -> throw TesseractError3("rev requires string or int", node.line) }
+                // 🔥 ИСПРАВЛЕНО: setmetatable теперь возвращает TNull, чтобы не засорять вывод
                 "setmetatable" -> {
                     if (args.size != 2) throw TesseractError3("setmetatable requires two arguments", node.line)
                     val table = args[0]
                     val mt = args[1]
                     if (table is TValue3.TArray) {
                         table.metatable = mt
-                        table
+                        TValue3.TNull 
                     } else {
                         throw TesseractError3("setmetatable first argument must be an array/table", node.line)
                     }
