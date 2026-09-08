@@ -64,7 +64,7 @@ object MathGuard3 {
 
 enum class TokenType3 {
     NUMBER, STRING, IDENTIFIER, PLUS, MINUS, MUL, DIV, INT_DIV, MOD, POW, XOR,
-    LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, COMMA, PIPE, ASSIGN, COLON, ARROW,
+    LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, COMMA, PIPE, ASSIGN, COLON, ARROW, DOT,
     GT, LT, GTE, LTE, EQ, NEQ, AND, OR,
     FN, VAL, CONST, RETURN, ASSERT, IF, THEN, ELSE, WHILE, DO, FOR, IN, TO, SEPARATOR, EXIT, EOF
 }
@@ -108,14 +108,40 @@ class Lexer3(private val source: String) {
                 c == ']' -> { addToken(TokenType3.RBRACKET, "]"); advance() }
                 c == ',' -> { addToken(TokenType3.COMMA, ","); advance() }
                 c == ':' -> { addToken(TokenType3.COLON, ":"); advance() }
+                c == '.' -> { addToken(TokenType3.DOT, "."); advance() } // НОВОЕ: поддержка точки
                 else -> throw TesseractError3("Unknown character: $c", line)
             }
         }
         tokens.add(Token3(TokenType3.EOF, "", line))
         return tokens
     }
+
     private fun readNumber() { val start = pos; while (pos < source.length && (currentChar().isDigit() || currentChar() == '.')) advance(); if (currentChar() == 'e' || currentChar() == 'E') { advance(); if (currentChar() == '+' || currentChar() == '-') advance(); while (pos < source.length && currentChar().isDigit()) advance() }; addToken(TokenType3.NUMBER, source.substring(start, pos)) }
-    private fun readString() { advance(); val start = pos; while (pos < source.length && currentChar() != '"') { if (currentChar() == '\\' && peek() == '"') advance(); advance() }; addToken(TokenType3.STRING, source.substring(start, pos)); if (pos < source.length && currentChar() == '"') advance() }
+    
+    // ИСПРАВЛЕНИЕ: Полная поддержка escape-последовательностей (\n, \t, \\, \")
+    private fun readString() {
+        advance() // Skip opening quote
+        val sb = StringBuilder()
+        while (pos < source.length && currentChar() != '"') {
+            if (currentChar() == '\\') {
+                advance() // Skip backslash
+                when (currentChar()) {
+                    'n' -> sb.append('\n')
+                    't' -> sb.append('\t')
+                    'r' -> sb.append('\r')
+                    '\\' -> sb.append('\\')
+                    '"' -> sb.append('"')
+                    else -> sb.append(currentChar()) // Fallback for unknown escapes
+                }
+            } else {
+                sb.append(currentChar())
+            }
+            advance()
+        }
+        addToken(TokenType3.STRING, sb.toString())
+        if (pos < source.length && currentChar() == '"') advance() // Skip closing quote
+    }
+
     private fun readIdentifier() { val start = pos; while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance(); var word = source.substring(start, pos); word = word.replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X'); if (word == "ate") throw TesseractError3("Typo: 'ate'", line); val type = when (word.lowercase()) { "fn" -> TokenType3.FN; "val", "var" -> TokenType3.VAL; "const" -> TokenType3.CONST; "return" -> TokenType3.RETURN; "assert" -> TokenType3.ASSERT; "if" -> TokenType3.IF; "then" -> TokenType3.THEN; "else" -> TokenType3.ELSE; "while" -> TokenType3.WHILE; "do" -> TokenType3.DO; "for" -> TokenType3.FOR; "in" -> TokenType3.IN; "to" -> TokenType3.TO; "exit" -> TokenType3.EXIT; "and" -> TokenType3.AND; "or" -> TokenType3.OR; else -> TokenType3.IDENTIFIER }; addToken(type, word) }
 }
 
@@ -132,15 +158,18 @@ sealed class Expr3 : Node3() {
     data class IfElse(val cond: Expr3, val thenExpr: Expr3, val elseExpr: Expr3, override val line: Int) : Expr3()
     data class ArrayLit(val elements: List<Expr3>, override val line: Int) : Expr3()
     data class IndexAccess(val target: Expr3, val index: Expr3, override val line: Int) : Expr3()
+    // НОВОЕ: Вызов методов через точку (arr.append(x))
+    data class MethodCall(val target: Expr3, val methodName: String, val args: List<Expr3>, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
     data class Assignment(val name: String, val value: Expr3, override val line: Int) : Stmt3()
     data class IndexAssignment(val target: Expr3, val index: Expr3, val value: Expr3, override val line: Int) : Stmt3()
+    // НОВОЕ: Деструктуризация val [a, b] = arr
+    data class DestructuringAssignment(val names: List<String>, val value: Expr3, override val line: Int) : Stmt3()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class AssertStmt(val condition: Expr3, override val line: Int) : Stmt3()
     data class ReturnStmt(val value: Expr3?, override val line: Int) : Stmt3()
     data class WhileStmt(val cond: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
-    // НОВЫЕ КОНСТРУКТЫ FOR
     data class ForRangeStmt(val varName: String, val start: Expr3, val end: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class ForInStmt(val varName: String, val collection: Expr3, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class ExprStmt(val expr: Expr3, override val line: Int) : Stmt3()
@@ -167,9 +196,30 @@ class Parser3(private val tokens: List<Token3>) {
             TokenType3.ASSERT -> { advance(); Stmt3.AssertStmt(parseExpression(), peek().line) }
             TokenType3.RETURN -> { advance(); val hasValue = peek().type != TokenType3.EOF && peek().type != TokenType3.RBRACE && peek().type != TokenType3.SEPARATOR; Stmt3.ReturnStmt(if (hasValue) parseExpression() else null, current.line) }
             TokenType3.WHILE -> parseWhile()
-            TokenType3.FOR -> parseFor() // НОВЫЙ ПАРСИНГ FOR
+            TokenType3.FOR -> parseFor()
             TokenType3.EXIT -> { advance(); val delay = if (peek().type == TokenType3.NUMBER) advance().value.toLong() else 0L; Stmt3.ExitStmt(delay, current.line) }
-            TokenType3.VAL, TokenType3.CONST -> { advance(); val nameToken = expect(TokenType3.IDENTIFIER); if (peek().type == TokenType3.COLON) { advance(); advance() }; expect(TokenType3.ASSIGN); Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line) }
+            TokenType3.VAL, TokenType3.CONST -> {
+                advance()
+                // НОВОЕ: Парсинг деструктуризации val [a, b] = ...
+                if (peek().type == TokenType3.LBRACKET) {
+                    advance() // consume [
+                    val names = mutableListOf<String>()
+                    if (peek().type != TokenType3.RBRACKET) {
+                        do {
+                            names.add(expect(TokenType3.IDENTIFIER).value)
+                            if (peek().type == TokenType3.COMMA) advance() else break
+                        } while (peek().type != TokenType3.RBRACKET)
+                    }
+                    expect(TokenType3.RBRACKET)
+                    expect(TokenType3.ASSIGN)
+                    Stmt3.DestructuringAssignment(names, parseExpression(), current.line)
+                } else {
+                    val nameToken = expect(TokenType3.IDENTIFIER)
+                    if (peek().type == TokenType3.COLON) { advance(); advance() }
+                    expect(TokenType3.ASSIGN)
+                    Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line)
+                }
+            }
             TokenType3.IDENTIFIER -> {
                 val lvalueExpr = parseExpression()
                 if (peek().type == TokenType3.ASSIGN) {
@@ -189,24 +239,7 @@ class Parser3(private val tokens: List<Token3>) {
     }
 
     private fun parseWhile(): Stmt3 { advance(); val cond = parseExpression(); expect(TokenType3.DO); return Stmt3.WhileStmt(cond, parseBlock(), cond.line) }
-    
-    // НОВАЯ ФУНКЦИЯ ПАРСИНГА FOR
-    private fun parseFor(): Stmt3 {
-        advance() // consume FOR
-        val varName = expect(TokenType3.IDENTIFIER).value
-        expect(TokenType3.IN)
-        val firstExpr = parseExpression()
-        if (peek().type == TokenType3.TO) {
-            advance() // consume TO
-            val secondExpr = parseExpression()
-            expect(TokenType3.DO)
-            return Stmt3.ForRangeStmt(varName, firstExpr, secondExpr, parseBlock(), firstExpr.line)
-        } else {
-            expect(TokenType3.DO)
-            return Stmt3.ForInStmt(varName, firstExpr, parseBlock(), firstExpr.line)
-        }
-    }
-    
+    private fun parseFor(): Stmt3 { advance(); val varName = expect(TokenType3.IDENTIFIER).value; expect(TokenType3.IN); val firstExpr = parseExpression(); if (peek().type == TokenType3.TO) { advance(); val secondExpr = parseExpression(); expect(TokenType3.DO); return Stmt3.ForRangeStmt(varName, firstExpr, secondExpr, parseBlock(), firstExpr.line) } else { expect(TokenType3.DO); return Stmt3.ForInStmt(varName, firstExpr, parseBlock(), firstExpr.line) } }
     private fun parseFunctionDef(): Stmt3 { advance(); val nameToken = expect(TokenType3.IDENTIFIER); expect(TokenType3.LPAREN); val params = mutableListOf<String>(); if (peek().type != TokenType3.RPAREN) { do { params.add(expect(TokenType3.IDENTIFIER).value); if (peek().type == TokenType3.COLON) { advance(); advance() }; if (peek().type == TokenType3.COMMA) advance() else break } while (peek().type != TokenType3.RPAREN) }; expect(TokenType3.RPAREN); if (peek().type == TokenType3.ARROW) { advance(); advance() }; return Stmt3.FunctionDef(nameToken.value, params, parseBlock(), nameToken.line) }
     private fun parseBlock(): List<Stmt3> { expect(TokenType3.LBRACE); val stmts = mutableListOf<Stmt3>(); while (peek().type != TokenType3.RBRACE && peek().type != TokenType3.EOF) { if (peek().type == TokenType3.SEPARATOR) advance() else stmts.add(parseStatement()) }; expect(TokenType3.RBRACE); return stmts }
 
@@ -232,7 +265,25 @@ class Parser3(private val tokens: List<Token3>) {
             TokenType3.LBRACKET -> { advance(); val elements = mutableListOf<Expr3>(); if (peek().type != TokenType3.RBRACKET) { elements.add(parseExpression()); while (peek().type == TokenType3.COMMA) { advance(); elements.add(parseExpression()) } }; expect(TokenType3.RBRACKET); Expr3.ArrayLit(elements, token.line) }
             else -> throw TesseractError3("Unexpected token: ${token.value}", token.line)
         }
-        while (peek().type == TokenType3.LBRACKET) { val bracketLine = peek().line; advance(); val indexExpr = parseExpression(); expect(TokenType3.RBRACKET); expr = Expr3.IndexAccess(expr, indexExpr, bracketLine) }
+        
+        // НОВОЕ: Поддержка цепочек вызовов: arr[0].append(x) или arr.slice(0, 2)
+        while (peek().type == TokenType3.LBRACKET || peek().type == TokenType3.DOT) {
+            if (peek().type == TokenType3.LBRACKET) {
+                val bracketLine = peek().line; advance(); val indexExpr = parseExpression(); expect(TokenType3.RBRACKET)
+                expr = Expr3.IndexAccess(expr, indexExpr, bracketLine)
+            } else if (peek().type == TokenType3.DOT) {
+                advance() // consume DOT
+                val methodName = expect(TokenType3.IDENTIFIER).value
+                expect(TokenType3.LPAREN)
+                val args = mutableListOf<Expr3>()
+                if (peek().type != TokenType3.RPAREN) {
+                    args.add(parseExpression())
+                    while (peek().type == TokenType3.COMMA) { advance(); args.add(parseExpression()) }
+                }
+                expect(TokenType3.RPAREN)
+                expr = Expr3.MethodCall(expr, methodName, args, expr.line)
+            }
+        }
         return expr
     }
 }
@@ -252,9 +303,7 @@ class Evaluator3(private val context: Context) {
     private var env = Environment3()
     private val userFunctions = mutableMapOf<String, Stmt3.FunctionDef>()
     private val callStack = mutableListOf<String>()
-    
     private val results = mutableListOf<String>()
-    
     private var recursionDepth = 0
     private var totalUserFunctionCalls = 0L 
     private val secureRandom = SecureRandom()
@@ -286,34 +335,48 @@ class Evaluator3(private val context: Context) {
                     is Stmt3.SeparatorStmt -> results.add("---")
                     is Stmt3.FunctionDef -> {}
                     is Stmt3.Assignment -> { if (!constantOverrides.containsKey(stmt.name)) env.set(stmt.name, eval(stmt.value)) }
-                    else -> { 
-                        // ИСПРАВЛЕНИЕ БАГА С NULL: добавлена проверка !is TValue3.TNull
-                        val res = evalStmt(stmt)
-                        if (res != null && res !is TValue3.TNull) results.add(res.displayString()) 
-                    }
+                    else -> { val res = evalStmt(stmt); if (res != null && res !is TValue3.TNull) results.add(res.displayString()) }
                 }
             }
-        } catch (e: ReturnValue3) { 
-            // ИСПРАВЛЕНИЕ БАГА С NULL: добавлена проверка !is TValue3.TNull
-            if (e.value != null && e.value !is TValue3.TNull) results.add(e.value.displayString()) 
-        } catch (e: TesseractExitCommand3) { 
-            exitDelayMs = e.delayMs 
-        } catch (e: TesseractOpenActCommand3) { 
-            throw e 
-        }
+        } catch (e: ReturnValue3) { if (e.value != null && e.value !is TValue3.TNull) results.add(e.value.displayString()) } 
+        catch (e: TesseractExitCommand3) { exitDelayMs = e.delayMs } 
+        catch (e: TesseractOpenActCommand3) { throw e }
         
         val output = if (results.isEmpty()) "void" else results.joinToString("\n")
         return if (exitDelayMs != null) "__TESSERACT_EXIT__:$exitDelayMs\n$output" else "Success:\n$output"
+    }
+
+    // Вспомогательная функция для обработки отрицательных индексов
+    private fun resolveIndex(targetSize: Int, index: Int, line: Int): Int {
+        val actual = if (index < 0) targetSize + index else index
+        if (actual < 0 || actual >= targetSize) throw TesseractError3("Index out of bounds: $index (size: $targetSize)", line, callStack.toList())
+        return actual
     }
 
     private fun evalStmt(node: Stmt3): TValue3? = when (node) {
         is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
         is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
         is Stmt3.Assignment -> { env.set(node.name, eval(node.value)); null }
+        // НОВОЕ: Деструктуризация
+        is Stmt3.DestructuringAssignment -> {
+            val value = eval(node.value)
+            if (value is TValue3.TArray) {
+                for (i in node.names.indices) {
+                    val valToAssign = if (i < value.items.size) value.items[i] else TValue3.TNull
+                    env.set(node.names[i], valToAssign)
+                }
+            } else {
+                throw TesseractError3("Can only destructure arrays", node.line, callStack.toList())
+            }
+            null
+        }
         is Stmt3.IndexAssignment -> {
-            val target = eval(node.target); val index = eval(node.index).toLong().toInt(); val value = eval(node.value)
+            val target = eval(node.target); val rawIndex = eval(node.index).toLong().toInt(); val value = eval(node.value)
             when (target) {
-                is TValue3.TArray -> { if (index < 0 || index >= target.items.size) throw TesseractError3("Array index out of bounds: $index", node.line, callStack.toList()); target.items[index] = value; null }
+                is TValue3.TArray -> { 
+                    val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                    target.items[actualIndex] = value; null 
+                }
                 else -> throw TesseractError3("Cannot assign to index of type: ${target::class.simpleName}", node.line, callStack.toList())
             }
         }
@@ -328,14 +391,10 @@ class Evaluator3(private val context: Context) {
             }
             null
         }
-        // НОВАЯ ЛОГИКА ВЫЧИСЛЕНИЯ FOR (ДИАПАЗОН)
         is Stmt3.ForRangeStmt -> {
-            var iterations = 0
-            val startTime = System.currentTimeMillis()
-            val startVal = eval(node.start).toLong()
-            val endVal = eval(node.end).toLong()
+            var iterations = 0; val startTime = System.currentTimeMillis()
+            val startVal = eval(node.start).toLong(); val endVal = eval(node.end).toLong()
             val step = if (startVal <= endVal) 1L else -1L
-            
             var i = startVal
             while (if (step > 0) i <= endVal else i >= endVal) {
                 if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
@@ -346,18 +405,10 @@ class Evaluator3(private val context: Context) {
             }
             null
         }
-        // НОВАЯ ЛОГИКА ВЫЧИСЛЕНИЯ FOR (КОЛЛЕКЦИЯ)
         is Stmt3.ForInStmt -> {
-            var iterations = 0
-            val startTime = System.currentTimeMillis()
+            var iterations = 0; val startTime = System.currentTimeMillis()
             val collection = eval(node.collection)
-            
-            val items = when (collection) {
-                is TValue3.TArray -> collection.items
-                is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }
-                else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList())
-            }
-            
+            val items = when (collection) { is TValue3.TArray -> collection.items; is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }; else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList()) }
             for (item in items) {
                 if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
                 env.set(node.varName, item)
@@ -382,11 +433,50 @@ class Evaluator3(private val context: Context) {
         is Expr3.FuncCall -> evalFuncCall(node)
         is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
         is Expr3.IndexAccess -> {
-            val target = eval(node.target); val index = eval(node.index).toLong().toInt()
+            val target = eval(node.target); val rawIndex = eval(node.index).toLong().toInt()
             when (target) {
-                is TValue3.TArray -> { if (index < 0 || index >= target.items.size) throw TesseractError3("Array index out of bounds: $index", node.line, callStack.toList()); target.items[index] }
-                is TValue3.TStr -> { if (index < 0 || index >= target.value.length) throw TesseractError3("String index out of bounds: $index", node.line, callStack.toList()); TValue3.TStr(target.value[index].toString()) }
+                is TValue3.TArray -> { 
+                    val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                    target.items[actualIndex] 
+                }
+                is TValue3.TStr -> { 
+                    val actualIndex = resolveIndex(target.value.length, rawIndex, node.line)
+                    TValue3.TStr(target.value[actualIndex].toString()) 
+                }
                 else -> throw TesseractError3("Cannot index type: ${target::class.simpleName}", node.line, callStack.toList())
+            }
+        }
+        // НОВОЕ: Вызов методов (arr.append(x), arr.pop(), arr.slice(start, end))
+        is Expr3.MethodCall -> {
+            val target = eval(node.target)
+            val args = node.args.map { eval(it) }
+            when (node.methodName) {
+                "append" -> {
+                    if (target is TValue3.TArray) {
+                        target.items.add(args.firstOrNull() ?: TValue3.TNull)
+                        TValue3.TNull
+                    } else throw TesseractError3("append() requires an array", node.line, callStack.toList())
+                }
+                "pop" -> {
+                    if (target is TValue3.TArray) {
+                        if (target.items.isEmpty()) throw TesseractError3("pop() from empty array", node.line, callStack.toList())
+                        target.items.removeAt(target.items.size - 1)
+                        TValue3.TNull
+                    } else throw TesseractError3("pop() requires an array", node.line, callStack.toList())
+                }
+                "slice" -> {
+                    if (target is TValue3.TArray) {
+                        val startRaw = args.getOrNull(0)?.toLong()?.toInt() ?: 0
+                        val endRaw = args.getOrNull(1)?.toLong()?.toInt() ?: target.items.size
+                        val start = if (startRaw < 0) target.items.size + startRaw else startRaw
+                        val end = if (endRaw < 0) target.items.size + endRaw else endRaw
+                        val clampedStart = start.coerceIn(0, target.items.size)
+                        val clampedEnd = end.coerceIn(0, target.items.size)
+                        if (clampedStart > clampedEnd) TValue3.TArray(mutableListOf())
+                        else TValue3.TArray(target.items.subList(clampedStart, clampedEnd).toMutableList())
+                    } else throw TesseractError3("slice() requires an array", node.line, callStack.toList())
+                }
+                else -> throw TesseractError3("Unknown method: ${node.methodName}", node.line, callStack.toList())
             }
         }
     }
@@ -435,44 +525,23 @@ class Evaluator3(private val context: Context) {
         
         val result = try {
             when (node.name) {
-                "print" -> {
-                    val output = args.joinToString(" ") { it.displayString() }
-                    results.add(output)
-                    TValue3.TNull
-                }
-                
+                "print" -> { val output = args.joinToString(" ") { it.displayString() }; results.add(output); TValue3.TNull }
                 "open_act" -> { if (args.isEmpty() || args[0] !is TValue3.TStr) throw TesseractError3("open_act requires a string", node.line); throw TesseractOpenActCommand3((args[0] as TValue3.TStr).value) }
                 "set_seed" -> { standardRandom.setSeed(args[0].toLong()); TValue3.TInt(1) }
                 "random" -> TValue3.TNum(standardRandom.nextDouble())
                 "random_int" -> { val min = args[0].toLong(); val max = args[1].toLong(); if (min > max) throw TesseractError3("random_int: min > max", node.line); TValue3.TInt(min + standardRandom.nextInt((max - min + 1).toInt())) }
                 "secure_random" -> TValue3.TNum(secureRandom.nextDouble())
                 "secure_random_int" -> { val min = args[0].toLong(); val max = args[1].toLong(); TValue3.TInt(min + secureRandom.nextInt((max - min + 1).toInt())) }
-                "char_at" -> { val strVal = args[0]; val idx = args[1].toLong().toInt(); if (strVal is TValue3.TStr) { if (idx < 0 || idx >= strVal.value.length) throw TesseractError3("char_at bounds", node.line); TValue3.TStr(strVal.value[idx].toString()) } else throw TesseractError3("char_at requires string", node.line) }
+                "char_at" -> { val strVal = args[0]; val idx = args[1].toLong().toInt(); if (strVal is TValue3.TStr) { val actualIdx = resolveIndex(strVal.value.length, idx, node.line); TValue3.TStr(strVal.value[actualIdx].toString()) } else throw TesseractError3("char_at requires string", node.line) }
                 "len" -> { when (val arg = args[0]) { is TValue3.TStr -> TValue3.TInt(arg.value.length.toLong()); is TValue3.TArray -> TValue3.TInt(arg.items.size.toLong()); else -> throw TesseractError3("len() requires string or array", node.line) } }
                 "type_of" -> { val typeStr = when (args[0]) { is TValue3.TNum -> "num"; is TValue3.TInt -> "int"; is TValue3.TStr -> "str"; is TValue3.TBool -> "bool"; is TValue3.TArray -> "array"; is TValue3.TNull -> "null"; else -> "unknown" }; TValue3.TStr(typeStr) }
                 "precise_eq" -> { if (args.size < 2) throw TesseractError3("precise_eq requires two arguments", node.line); TValue3.TBool(abs(args[0].toDouble() - args[1].toDouble()) < 1e-12) }
                 "round_exact" -> { if (args.size < 2) throw TesseractError3("round_exact requires value and decimals", node.line); val value = args[0].toDouble(); val scale = args[1].toLong().toInt(); val bd = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP); TValue3.TNum(bd.toDouble()) }
-                
                 "bd_add" -> { if (args.size < 2) throw TesseractError3("bd_add requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) + BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
                 "bd_sub" -> { if (args.size < 2) throw TesseractError3("bd_sub requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) - BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
                 "bd_mul" -> { if (args.size < 2) throw TesseractError3("bd_mul requires two arguments", node.line); TValue3.TNum((BigDecimal.valueOf(args[0].toDouble()) * BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
-                "bd_div" -> { 
-                    if (args.size < 2) throw TesseractError3("bd_div requires at least two arguments", node.line)
-                    val a = BigDecimal.valueOf(args[0].toDouble())
-                    val b = BigDecimal.valueOf(args[1].toDouble())
-                    val scale = if (args.size >= 3) args[2].toLong().toInt() else 2
-                    TValue3.TNum(a.divide(b, scale, RoundingMode.HALF_UP).toDouble())
-                }
-                "bd_sum" -> {
-                    val list = getNumericArgs()
-                    if (list.isEmpty()) TValue3.TNum(0.0)
-                    else {
-                        var sum = BigDecimal.ZERO
-                        for (num in list) sum = sum.add(BigDecimal.valueOf(num))
-                        TValue3.TNum(sum.toDouble())
-                    }
-                }
-
+                "bd_div" -> { if (args.size < 2) throw TesseractError3("bd_div requires at least two arguments", node.line); val a = BigDecimal.valueOf(args[0].toDouble()); val b = BigDecimal.valueOf(args[1].toDouble()); val scale = if (args.size >= 3) args[2].toLong().toInt() else 2; TValue3.TNum(a.divide(b, scale, RoundingMode.HALF_UP).toDouble()) }
+                "bd_sum" -> { val list = getNumericArgs(); if (list.isEmpty()) TValue3.TNum(0.0) else { var sum = BigDecimal.ZERO; for (num in list) sum = sum.add(BigDecimal.valueOf(num)); TValue3.TNum(sum.toDouble()) } }
                 "sum" -> TValue3.TNum(if (getNumericArgs().isEmpty()) 0.0 else getNumericArgs().sum())
                 "avg" -> { val list = getNumericArgs(); if (list.isEmpty()) throw TesseractError3("avg requires arguments", node.line); TValue3.TNum(list.sum() / list.size) }
                 "max_val" -> TValue3.TNum(getNumericArgs().maxOrNull() ?: 0.0)
