@@ -33,19 +33,10 @@ sealed class TValue3 {
         val items: MutableList<TValue3> = mutableListOf(),
         val fields: MutableMap<String, TValue3> = mutableMapOf(),
         var metatable: TValue3? = null
-    ) : TValue3() {
-        override fun displayString(): String {
-            val itemsStr = items.joinToString(", ") { it.displayString() }
-            if (fields.isEmpty()) return "[$itemsStr]"
-            val fieldsStr = fields.map { "${it.key}=${it.value.displayString()}" }.joinToString(", ")
-            return "{items: [$itemsStr], fields: {$fieldsStr}}"
-        }
-    }
+    ) : TValue3()
     
     // НОВОЕ: Функция как объект первого класса (для замыканий)
-    data class TFunction(val params: List<String>, val body: List<Stmt3>, val closureEnv: Environment3) : TValue3() {
-        override fun displayString(): String = "<function>"
-    }
+    data class TFunction(val params: List<String>, val body: List<Stmt3>, val closureEnv: Environment3) : TValue3()
     
     object TNull : TValue3()
 
@@ -64,7 +55,8 @@ sealed class TValue3 {
     }
     fun displayString(): String = when (this) {
         is TNum -> if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
-        is TInt -> value.toString(); is TStr -> value
+        is TInt -> value.toString()
+        is TStr -> value
         is TBool -> if (value) "true" else "false"
         is TArray -> {
             val itemsStr = items.joinToString(", ") { it.displayString() }
@@ -463,168 +455,189 @@ class Evaluator3(private val context: Context) {
         return result
     }
 
-    private fun evalStmt(node: Stmt3): TValue3? = when (node) {
-        is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
-        is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
-        is Stmt3.Assignment -> { env.set(node.name, eval(node.value)); null }
-        is Stmt3.DestructuringAssignment -> {
-            val value = eval(node.value)
-            if (value is TValue3.TArray) {
-                for (i in node.names.indices) {
-                    val valToAssign = if (i < value.items.size) value.items[i] else TValue3.TNull
-                    env.set(node.names[i], valToAssign)
-                }
-            } else {
-                throw TesseractError3("Can only destructure arrays", node.line, callStack.toList())
-            }
-            null
-        }
-        is Stmt3.IndexAssignment -> {
-            val target = eval(node.target)
-            val indexVal = eval(node.index)
-            val value = eval(node.value)
-            
-            if (target is TValue3.TArray) {
-                if (indexVal is TValue3.TInt) {
-                    val rawIndex = indexVal.value.toInt()
-                    val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
-                    target.items[actualIndex] = value
-                } else if (indexVal is TValue3.TStr) {
-                    // НОВОЕ: Поддержка __newindex
-                    val mt = target.metatable
-                    if (mt is TValue3.TArray && mt.fields.containsKey("__newindex")) {
-                        val newindexFn = mt.fields["__newindex"]
-                        if (newindexFn is TValue3.TFunction) {
-                            callTFunction(newindexFn, listOf(target, indexVal, value), node.line)
-                            return null
-                        }
+    // ИСПРАВЛЕНО: Изменено на блок-тело, чтобы разрешить return внутри when
+    private fun evalStmt(node: Stmt3): TValue3? {
+        return when (node) {
+            is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
+            is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
+            is Stmt3.Assignment -> { env.set(node.name, eval(node.value)); null }
+            is Stmt3.DestructuringAssignment -> {
+                val value = eval(node.value)
+                if (value is TValue3.TArray) {
+                    for (i in node.names.indices) {
+                        val valToAssign = if (i < value.items.size) value.items[i] else TValue3.TNull
+                        env.set(node.names[i], valToAssign)
                     }
-                    target.fields[indexVal.value] = value
+                } else {
+                    throw TesseractError3("Can only destructure arrays", node.line, callStack.toList())
                 }
-                return null
+                null
             }
-            throw TesseractError3("Cannot assign to index of type: ${target::class.simpleName}", node.line, callStack.toList())
-        }
-        is Stmt3.ExitStmt -> throw TesseractExitCommand3(node.delayMs)
-        is Stmt3.WhileStmt -> {
-            var iterations = 0; val startTime = System.currentTimeMillis()
-            while (true) {
-                if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("While loop timeout (3s)", node.line, callStack.toList())
-                if (!eval(node.cond).toBoolean()) break
-                for (stmt in node.body) evalStmt(stmt)
-                if (++iterations > 1_000_000) throw TesseractError3("While loop iteration limit (1M)", node.line, callStack.toList())
+            is Stmt3.IndexAssignment -> {
+                val target = eval(node.target)
+                val indexVal = eval(node.index)
+                val value = eval(node.value)
+                
+                if (target is TValue3.TArray) {
+                    if (indexVal is TValue3.TInt) {
+                        val rawIndex = indexVal.value.toInt()
+                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                        target.items[actualIndex] = value
+                    } else if (indexVal is TValue3.TStr) {
+                        val mt = target.metatable
+                        if (mt is TValue3.TArray && mt.fields.containsKey("__newindex")) {
+                            val newindexFn = mt.fields["__newindex"]
+                            if (newindexFn is TValue3.TFunction) {
+                                callTFunction(newindexFn, listOf(target, indexVal, value), node.line)
+                                return null
+                            }
+                        }
+                        target.fields[indexVal.value] = value
+                    }
+                    return null
+                }
+                throw TesseractError3("Cannot assign to index of type: ${target::class.simpleName}", node.line, callStack.toList())
             }
-            null
-        }
-        is Stmt3.ForRangeStmt -> {
-            var iterations = 0; val startTime = System.currentTimeMillis()
-            val startVal = eval(node.start).toLong(); val endVal = eval(node.end).toLong()
-            val step = if (startVal <= endVal) 1L else -1L
-            var i = startVal
-            while (if (step > 0) i <= endVal else i >= endVal) {
-                if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
-                env.set(node.varName, TValue3.TInt(i))
-                for (stmt in node.body) evalStmt(stmt)
-                i += step
-                if (++iterations > 1_000_000) throw TesseractError3("For loop iteration limit (1M)", node.line, callStack.toList())
+            is Stmt3.ExitStmt -> throw TesseractExitCommand3(node.delayMs)
+            is Stmt3.WhileStmt -> {
+                var iterations = 0; val startTime = System.currentTimeMillis()
+                while (true) {
+                    if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("While loop timeout (3s)", node.line, callStack.toList())
+                    if (!eval(node.cond).toBoolean()) break
+                    for (stmt in node.body) evalStmt(stmt)
+                    if (++iterations > 1_000_000) throw TesseractError3("While loop iteration limit (1M)", node.line, callStack.toList())
+                }
+                null
             }
-            null
-        }
-        is Stmt3.ForInStmt -> {
-            var iterations = 0; val startTime = System.currentTimeMillis()
-            val collection = eval(node.collection)
-            val items = when (collection) { is TValue3.TArray -> collection.items; is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }; else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList()) }
-            for (item in items) {
-                if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
-                env.set(node.varName, item)
-                for (stmt in node.body) evalStmt(stmt)
-                if (++iterations > 1_000_000) throw TesseractError3("For-in loop iteration limit (1M)", node.line, callStack.toList())
+            is Stmt3.ForRangeStmt -> {
+                var iterations = 0; val startTime = System.currentTimeMillis()
+                val startVal = eval(node.start).toLong(); val endVal = eval(node.end).toLong()
+                val step = if (startVal <= endVal) 1L else -1L
+                var i = startVal
+                while (if (step > 0) i <= endVal else i >= endVal) {
+                    if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
+                    env.set(node.varName, TValue3.TInt(i))
+                    for (stmt in node.body) evalStmt(stmt)
+                    i += step
+                    if (++iterations > 1_000_000) throw TesseractError3("For loop iteration limit (1M)", node.line, callStack.toList())
+                }
+                null
             }
-            null
+            is Stmt3.ForInStmt -> {
+                var iterations = 0; val startTime = System.currentTimeMillis()
+                val collection = eval(node.collection)
+                val items = when (collection) { is TValue3.TArray -> collection.items; is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }; else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList()) }
+                for (item in items) {
+                    if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
+                    env.set(node.varName, item)
+                    for (stmt in node.body) evalStmt(stmt)
+                    if (++iterations > 1_000_000) throw TesseractError3("For-in loop iteration limit (1M)", node.line, callStack.toList())
+                }
+                null
+            }
+            is Stmt3.ExprStmt -> eval(node.expr)
+            is Stmt3.FunctionDef, is Stmt3.SeparatorStmt -> null
         }
-        is Stmt3.ExprStmt -> eval(node.expr)
-        is Stmt3.FunctionDef, is Stmt3.SeparatorStmt -> null
     }
 
-    private fun eval(node: Expr3): TValue3 = when (node) {
-        is Expr3.NumLit -> TValue3.TNum(node.value)
-        is Expr3.IntLit -> TValue3.TInt(node.value)
-        is Expr3.StrLit -> TValue3.TStr(node.value)
-        is Expr3.VarRef -> env.get(node.name) ?: throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
-        is Expr3.UnaryOp -> { 
-            if (node.op == TokenType3.MINUS) {
-                val v = eval(node.operand).toDouble()
-                MathGuard3.checkOverflow(v, node.line)
-                TValue3.TNum(-v) 
-            } else if (node.op == TokenType3.PLUS) {
-                val v = eval(node.operand).toDouble()
-                MathGuard3.checkOverflow(v, node.line)
-                TValue3.TNum(v)
-            } else if (node.op == TokenType3.NEGATE) {
-                TValue3.TBool(!eval(node.operand).toBoolean())
-            } else {
-                TValue3.TNum(eval(node.operand).toDouble())
+    // ИСПРАВЛЕНО: Изменено на блок-тело, чтобы разрешить return внутри when
+    private fun eval(node: Expr3): TValue3 {
+        return when (node) {
+            is Expr3.NumLit -> TValue3.TNum(node.value)
+            is Expr3.IntLit -> TValue3.TInt(node.value)
+            is Expr3.StrLit -> TValue3.TStr(node.value)
+            is Expr3.VarRef -> env.get(node.name) ?: throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
+            is Expr3.UnaryOp -> { 
+                if (node.op == TokenType3.MINUS) {
+                    val v = eval(node.operand).toDouble()
+                    MathGuard3.checkOverflow(v, node.line)
+                    TValue3.TNum(-v) 
+                } else if (node.op == TokenType3.PLUS) {
+                    val v = eval(node.operand).toDouble()
+                    MathGuard3.checkOverflow(v, node.line)
+                    TValue3.TNum(v)
+                } else if (node.op == TokenType3.NEGATE) {
+                    TValue3.TBool(!eval(node.operand).toBoolean())
+                } else {
+                    TValue3.TNum(eval(node.operand).toDouble())
+                }
             }
-        }
-        is Expr3.IfElse -> { if (eval(node.cond).toBoolean()) eval(node.thenExpr) else eval(node.elseExpr) }
-        is Expr3.BinaryOp -> evalBinaryOp(node)
-        is Expr3.Pipeline -> evalPipeline(node)
-        is Expr3.FuncCall -> evalFuncCall(node)
-        is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
-        // НОВОЕ: Поддержка строковых индексов и __index
-        is Expr3.IndexAccess -> {
-            val target = eval(node.target)
-            val indexVal = eval(node.index)
-            
-            if (target is TValue3.TArray) {
-                if (indexVal is TValue3.TInt) {
-                    val rawIndex = indexVal.value.toInt()
-                    val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
-                    return target.items[actualIndex]
-                } else if (indexVal is TValue3.TStr) {
-                    if (target.fields.containsKey(indexVal.value)) {
-                        return target.fields[indexVal.value]!!
-                    }
-                    val mt = target.metatable
-                    if (mt is TValue3.TArray && mt.fields.containsKey("__index")) {
-                        val indexFn = mt.fields["__index"]
-                        if (indexFn is TValue3.TFunction) {
-                            return callTFunction(indexFn, listOf(target, indexVal), node.line)
-                        } else if (indexFn is TValue3.TArray) {
-                            if (indexFn.fields.containsKey(indexVal.value)) return indexFn.fields[indexVal.value]!!
+            is Expr3.IfElse -> { if (eval(node.cond).toBoolean()) eval(node.thenExpr) else eval(node.elseExpr) }
+            is Expr3.BinaryOp -> evalBinaryOp(node)
+            is Expr3.Pipeline -> evalPipeline(node)
+            is Expr3.FuncCall -> evalFuncCall(node)
+            is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
+            is Expr3.AnonymousFunc -> TValue3.TFunction(node.params, node.body, env)
+            is Expr3.IndexAccess -> {
+                val target = eval(node.target)
+                val indexVal = eval(node.index)
+                
+                if (target is TValue3.TArray) {
+                    if (indexVal is TValue3.TInt) {
+                        val rawIndex = indexVal.value.toInt()
+                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                        target.items[actualIndex]
+                    } else if (indexVal is TValue3.TStr) {
+                        if (target.fields.containsKey(indexVal.value)) {
+                            target.fields[indexVal.value]!!
+                        } else {
+                            val mt = target.metatable
+                            if (mt is TValue3.TArray && mt.fields.containsKey("__index")) {
+                                val indexFn = mt.fields["__index"]
+                                if (indexFn is TValue3.TFunction) {
+                                    callTFunction(indexFn, listOf(target, indexVal), node.line)
+                                } else if (indexFn is TValue3.TArray) {
+                                    if (indexFn.fields.containsKey(indexVal.value)) indexFn.fields[indexVal.value]!! else TValue3.TNull
+                                } else TValue3.TNull
+                            } else {
+                                TValue3.TNull
+                            }
                         }
+                    } else {
+                        throw TesseractError3("Cannot index array with ${indexVal::class.simpleName}", node.line, callStack.toList())
                     }
-                    return TValue3.TNull
-                }
-            } else if (target is TValue3.TStr) {
-                if (indexVal is TValue3.TInt) {
-                    val rawIndex = indexVal.value.toInt()
-                    val actualIndex = resolveIndex(target.value.length, rawIndex, node.line)
-                    return TValue3.TStr(target.value[actualIndex].toString())
+                } else if (target is TValue3.TStr) {
+                    if (indexVal is TValue3.TInt) {
+                        val rawIndex = indexVal.value.toInt()
+                        val actualIndex = resolveIndex(target.value.length, rawIndex, node.line)
+                        TValue3.TStr(target.value[actualIndex].toString())
+                    } else {
+                        throw TesseractError3("Cannot index string with ${indexVal::class.simpleName}", node.line, callStack.toList())
+                    }
+                } else {
+                    throw TesseractError3("Cannot index type: ${target::class.simpleName}", node.line, callStack.toList())
                 }
             }
-            throw TesseractError3("Cannot index type: ${target::class.simpleName} with ${indexVal::class.simpleName}", node.line, callStack.toList())
-        }
-        // НОВОЕ: Создание замыкания
-        is Expr3.AnonymousFunc -> TValue3.TFunction(node.params, node.body, env)
-        is Expr3.MethodCall -> {
-            val target = eval(node.target)
-            val args = node.args.map { eval(it) }
-            when (node.methodName) {
-                "append" -> { if (target is TValue3.TArray) { target.items.add(args.firstOrNull() ?: TValue3.TNull); TValue3.TNull } else throw TesseractError3("append() requires an array", node.line, callStack.toList()) }
-                "pop" -> { if (target is TValue3.TArray) { if (target.items.isEmpty()) throw TesseractError3("pop() from empty array", node.line, callStack.toList()); target.items.removeAt(target.items.size - 1); TValue3.TNull } else throw TesseractError3("pop() requires an array", node.line, callStack.toList()) }
-                "slice" -> {
-                    if (target is TValue3.TArray) {
-                        val startRaw = args.getOrNull(0)?.toLong()?.toInt() ?: 0
-                        val endRaw = args.getOrNull(1)?.toLong()?.toInt() ?: target.items.size
-                        val start = if (startRaw < 0) target.items.size + startRaw else startRaw
-                        val end = if (endRaw < 0) target.items.size + endRaw else endRaw
-                        val clampedStart = start.coerceIn(0, target.items.size)
-                        val clampedEnd = end.coerceIn(0, target.items.size)
-                        if (clampedStart > clampedEnd) TValue3.TArray(mutableListOf()) else TValue3.TArray(target.items.subList(clampedStart, clampedEnd).toMutableList())
-                    } else throw TesseractError3("slice() requires an array", node.line, callStack.toList())
+            is Expr3.MethodCall -> {
+                val target = eval(node.target)
+                val args = node.args.map { eval(it) }
+                when (node.methodName) {
+                    "append" -> { 
+                        if (target is TValue3.TArray) { 
+                            target.items.add(args.firstOrNull() ?: TValue3.TNull)
+                            TValue3.TNull 
+                        } else throw TesseractError3("append() requires an array", node.line, callStack.toList()) 
+                    }
+                    "pop" -> { 
+                        if (target is TValue3.TArray) {
+                            if (target.items.isEmpty()) throw TesseractError3("pop() from empty array", node.line, callStack.toList())
+                            target.items.removeAt(target.items.size - 1)
+                            TValue3.TNull 
+                        } else throw TesseractError3("pop() requires an array", node.line, callStack.toList()) 
+                    }
+                    "slice" -> {
+                        if (target is TValue3.TArray) {
+                            val startRaw = args.getOrNull(0)?.toLong()?.toInt() ?: 0
+                            val endRaw = args.getOrNull(1)?.toLong()?.toInt() ?: target.items.size
+                            val start = if (startRaw < 0) target.items.size + startRaw else startRaw
+                            val end = if (endRaw < 0) target.items.size + endRaw else endRaw
+                            val clampedStart = start.coerceIn(0, target.items.size)
+                            val clampedEnd = end.coerceIn(0, target.items.size)
+                            if (clampedStart > clampedEnd) TValue3.TArray(mutableListOf()) else TValue3.TArray(target.items.subList(clampedStart, clampedEnd).toMutableList())
+                        } else throw TesseractError3("slice() requires an array", node.line, callStack.toList())
+                    }
+                    else -> throw TesseractError3("Unknown method: ${node.methodName}", node.line, callStack.toList())
                 }
-                else -> throw TesseractError3("Unknown method: ${node.methodName}", node.line, callStack.toList())
             }
         }
     }
