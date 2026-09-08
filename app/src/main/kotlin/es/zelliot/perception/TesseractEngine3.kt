@@ -28,14 +28,12 @@ sealed class TValue3 {
     data class TStr(val value: String) : TValue3()
     data class TBool(val value: Boolean) : TValue3()
     
-    // НОВОЕ: TArray теперь поддерживает строковые поля (как Lua table) и metatable
     data class TArray(
         val items: MutableList<TValue3> = mutableListOf(),
         val fields: MutableMap<String, TValue3> = mutableMapOf(),
         var metatable: TValue3? = null
     ) : TValue3()
     
-    // НОВОЕ: Функция как объект первого класса (для замыканий)
     data class TFunction(val params: List<String>, val body: List<Stmt3>, val closureEnv: Environment3) : TValue3()
     
     object TNull : TValue3()
@@ -191,8 +189,9 @@ sealed class Expr3 : Node3() {
     data class ArrayLit(val elements: List<Expr3>, override val line: Int) : Expr3()
     data class IndexAccess(val target: Expr3, val index: Expr3, override val line: Int) : Expr3()
     data class MethodCall(val target: Expr3, val methodName: String, val args: List<Expr3>, override val line: Int) : Expr3()
-    // НОВОЕ: Анонимная функция (замыкание)
     data class AnonymousFunc(val params: List<String>, val body: List<Stmt3>, override val line: Int) : Expr3()
+    // НОВОЕ: return как выражение (позволяет использовать return внутри if, присваиваний и т.д.)
+    data class ReturnExpr(val value: Expr3?, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
     data class Assignment(val name: String, val value: Expr3, override val line: Int) : Stmt3()
@@ -226,7 +225,11 @@ class Parser3(private val tokens: List<Token3>) {
         return when (current.type) {
             TokenType3.FN -> parseFunctionDef()
             TokenType3.ASSERT -> { advance(); Stmt3.AssertStmt(parseExpression(), peek().line) }
-            TokenType3.RETURN -> { advance(); val hasValue = peek().type != TokenType3.EOF && peek().type != TokenType3.RBRACE && peek().type != TokenType3.SEPARATOR; Stmt3.ReturnStmt(if (hasValue) parseExpression() else null, current.line) }
+            TokenType3.RETURN -> { 
+                advance()
+                val hasValue = peek().type != TokenType3.EOF && peek().type != TokenType3.RBRACE && peek().type != TokenType3.SEPARATOR
+                Stmt3.ReturnStmt(if (hasValue) parseExpression() else null, current.line) 
+            }
             TokenType3.WHILE -> parseWhile()
             TokenType3.FOR -> parseFor()
             TokenType3.EXIT -> { advance(); val delay = if (peek().type == TokenType3.NUMBER) advance().value.toLong() else 0L; Stmt3.ExitStmt(delay, current.line) }
@@ -313,10 +316,8 @@ class Parser3(private val tokens: List<Token3>) {
             TokenType3.NUMBER -> { advance(); if (token.value.contains('.') || token.value.contains('e', true)) Expr3.NumLit(token.value.toDouble(), token.line) else Expr3.IntLit(token.value.toLong(), token.line) }
             TokenType3.STRING -> { advance(); Expr3.StrLit(token.value, token.line) }
             TokenType3.IF -> { advance(); val cond = parseExpression(); expect(TokenType3.THEN); val thenExpr = parseExpression(); expect(TokenType3.ELSE); Expr3.IfElse(cond, thenExpr, parseExpression(), token.line) }
-            // НОВОЕ: Парсинг анонимной функции как выражения
             TokenType3.FN -> {
                 advance()
-                if (peek().type == TokenType3.IDENTIFIER) advance() // Опционально пропускаем имя, если оно указано
                 val params = mutableListOf<String>()
                 if (peek().type == TokenType3.LPAREN) {
                     advance()
@@ -336,6 +337,17 @@ class Parser3(private val tokens: List<Token3>) {
                 }
                 expect(TokenType3.RBRACE)
                 Expr3.AnonymousFunc(params, body, token.line)
+            }
+            // НОВОЕ: Поддержка return как выражения (работает как функция)
+            TokenType3.RETURN -> {
+                advance()
+                val hasValue = peek().type != TokenType3.RBRACE && peek().type != TokenType3.RBRACKET && 
+                               peek().type != TokenType3.COMMA && peek().type != TokenType3.EOF && 
+                               peek().type != TokenType3.COLON && peek().type != TokenType3.THEN && 
+                               peek().type != TokenType3.ELSE && peek().type != TokenType3.DO &&
+                               peek().type != TokenType3.SEPARATOR
+                val value = if (hasValue) parseExpression() else null
+                Expr3.ReturnExpr(value, token.line)
             }
             TokenType3.IDENTIFIER -> { advance(); if (peek().type == TokenType3.LPAREN) { advance(); val args = mutableListOf<Expr3>(); if (peek().type != TokenType3.RPAREN) { args.add(parseExpression()); while (peek().type == TokenType3.COMMA) { advance(); args.add(parseExpression()) } }; expect(TokenType3.RPAREN); Expr3.FuncCall(token.value, args, token.line) } else Expr3.VarRef(token.value, token.line) }
             TokenType3.LPAREN -> { advance(); val e = parseExpression(); expect(TokenType3.RPAREN); e }
@@ -428,7 +440,6 @@ class Evaluator3(private val context: Context) {
         return actual
     }
 
-    // НОВОЕ: Универсальный вызов функции-замыкания
     private fun callTFunction(func: TValue3.TFunction, args: List<TValue3>, line: Int): TValue3 {
         totalUserFunctionCalls++; if (totalUserFunctionCalls > 1_000_000) throw TesseractError3("Global call limit exceeded", line, callStack.toList())
         if (++recursionDepth > 2000) throw TesseractError3("Recursion depth exceeded (2000)", line, callStack.toList())
@@ -455,7 +466,6 @@ class Evaluator3(private val context: Context) {
         return result
     }
 
-    // ИСПРАВЛЕНО: Изменено на блок-тело, чтобы разрешить return внутри when
     private fun evalStmt(node: Stmt3): TValue3? {
         return when (node) {
             is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
@@ -540,7 +550,6 @@ class Evaluator3(private val context: Context) {
         }
     }
 
-    // ИСПРАВЛЕНО: Изменено на блок-тело, чтобы разрешить return внутри when
     private fun eval(node: Expr3): TValue3 {
         return when (node) {
             is Expr3.NumLit -> TValue3.TNum(node.value)
@@ -568,6 +577,8 @@ class Evaluator3(private val context: Context) {
             is Expr3.FuncCall -> evalFuncCall(node)
             is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
             is Expr3.AnonymousFunc -> TValue3.TFunction(node.params, node.body, env)
+            // НОВОЕ: Вычисление return как выражения (бросает исключение ReturnValue3)
+            is Expr3.ReturnExpr -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
             is Expr3.IndexAccess -> {
                 val target = eval(node.target)
                 val indexVal = eval(node.index)
@@ -648,7 +659,6 @@ class Evaluator3(private val context: Context) {
         if (node.op == TokenType3.OR) return TValue3.TBool(left.toBoolean() || right.toBoolean())
         
         if (node.op in listOf(TokenType3.GT, TokenType3.LT, TokenType3.GTE, TokenType3.LTE, TokenType3.EQ, TokenType3.NEQ)) {
-            // НОВОЕ: Поддержка __eq для массивов
             if (node.op == TokenType3.EQ && left is TValue3.TArray && right is TValue3.TArray) {
                 val mt = left.metatable ?: right.metatable
                 if (mt is TValue3.TArray && mt.fields.containsKey("__eq")) {
@@ -681,7 +691,6 @@ class Evaluator3(private val context: Context) {
         
         return when (node.op) {
             TokenType3.PLUS -> {
-                // НОВОЕ: Поддержка __add для массивов
                 if (left is TValue3.TArray && right is TValue3.TArray) {
                     val mt = left.metatable ?: right.metatable
                     if (mt is TValue3.TArray && mt.fields.containsKey("__add")) {
@@ -712,7 +721,6 @@ class Evaluator3(private val context: Context) {
     }
 
     private fun evalFuncCall(node: Expr3.FuncCall): TValue3 {
-        // НОВОЕ: Сначала проверяем, не является ли имя функцией-замыканием в окружении
         val funcVal = env.get(node.name)
         if (funcVal is TValue3.TFunction) {
             val args = node.args.map { eval(it) }
@@ -776,7 +784,6 @@ class Evaluator3(private val context: Context) {
                 "floor" -> TValue3.TInt(floor(args[0].toDouble()).toLong()); "ceil" -> TValue3.TInt(ceil(args[0].toDouble()).toLong()); "round" -> TValue3.TInt(round(args[0].toDouble()).toLong())
                 "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]; "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
                 "rev" -> when (val arg = args[0]) { is TValue3.TInt -> TValue3.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L); is TValue3.TStr -> TValue3.TStr(arg.value.reversed()); else -> throw TesseractError3("rev requires string or int", node.line) }
-                // НОВОЕ: Встроенная функция setmetatable
                 "setmetatable" -> {
                     if (args.size != 2) throw TesseractError3("setmetatable requires two arguments", node.line)
                     val table = args[0]
