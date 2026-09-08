@@ -229,7 +229,7 @@ class TesseractActivity : AppCompatActivity() {
                 sb.append(originalScript, lastEnd, match.range.first)
                 val name = match.groupValues[1]
                 val newValue = editTexts[name]?.text.toString().toDoubleOrNull() ?: match.groupValues[2]
-                sb.append("val $name = $newValue") // Сохраняем val для совместимости с парсером
+                sb.append("val $name = $newValue")
                 lastEnd = match.range.last + 1
             }
             sb.append(originalScript, lastEnd, originalScript.length)
@@ -307,8 +307,6 @@ class TesseractActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // === ИЗМЕНЕНИЕ ЗДЕСЬ: Используем TesseractEngine3 вместо Engine1 ===
-                // Engine3 полностью обратно совместим, но добавляет массивы, len() и умные типы.
                 val result = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
@@ -335,7 +333,7 @@ class TesseractActivity : AppCompatActivity() {
                     showResult(result)
                 }
 
-            } catch (e: TesseractOpenActCommand3) { // Обновлено для Engine3
+            } catch (e: TesseractOpenActCommand3) {
                 val target = e.packageName
                 try {
                     val intent: Intent? = if (target.contains("/")) {
@@ -386,22 +384,32 @@ class TesseractActivity : AppCompatActivity() {
         activityScope.cancel()
     }
 
+    // ========================================================================
+    // ИСПРАВЛЕННЫЙ ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА
+    // ========================================================================
     private class TesseractHighlighter(
         private val editText: EditText,
         private val lifecycle: androidx.lifecycle.Lifecycle
     ) : TextWatcher {
-        private val colorKeyword = Color.parseColor("#C792EA")
-        private val colorString = Color.parseColor("#C3E88D")
-        private val colorComment = Color.parseColor("#546E7A")
-        private val colorNumber = Color.parseColor("#F78C6C")
-        private val colorFunction = Color.parseColor("#82AAFF")
-        private val colorOperator = Color.parseColor("#89DDFF")
-        
-        private val keywordPattern = Pattern.compile("\\b(if|else|elif|for|while|do|return|break|continue|try|catch|finally|throw|val|var|const|fun|function|class|interface|object|package|import|from|as|in|is|not|and|or|true|false|null|void|open|close|exit|print|println|log|eval|exec|run|system|command)\\b")
-        private val functionPattern = Pattern.compile("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(")
-        private val stringPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|`[^`]*`)")
+        private val colorKeyword = Color.parseColor("#C792EA")   // Фиолетовый: val, for, if, true
+        private val colorString = Color.parseColor("#C3E88D")    // Лаймовый: "строки"
+        private val colorComment = Color.parseColor("#546E7A")   // Серый: # комментарии
+        private val colorNumber = Color.parseColor("#F78C6C")    // Оранжевый: 123, 0.5
+        private val colorFunction = Color.parseColor("#82AAFF")  // Голубой: print(, len(
+        private val colorOperator = Color.parseColor("#89DDFF")  // Бирюзовый: +, =, ., ==
+
+        // ИСПРАВЛЕНО: Регулярка теперь корректно понимает экранированные символы внутри строк (\", \\)
+        private val stringPattern = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|`(?:[^`\\\\]|\\\\.)*`)")
         private val commentPattern = Pattern.compile("(//.*|/\\*[\\s\\S]*?\\*/|#.*)")
+        
+        // Только строгие ключевые слова (print и len убраны отсюда, они ловятся functionPattern)
+        private val keywordPattern = Pattern.compile("\\b(if|else|elif|for|while|do|return|break|continue|try|catch|finally|throw|val|var|const|fn|function|class|interface|object|package|import|from|as|in|is|not|and|or|true|false|null|void|exit|assert|to)\\b")
+        
+        // Любое слово, за которым следует '(' (с возможным пробелом)
+        private val functionPattern = Pattern.compile("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(")
         private val numberPattern = Pattern.compile("\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b")
+        
+        // Добавлена точка (\\.) для подсветки вызовов методов
         private val operatorPattern = Pattern.compile("(==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|\\+=|-=|\\*=|/=|%=|\\.)")
 
         private var debounceJob: Job? = null
@@ -426,13 +434,19 @@ class TesseractActivity : AppCompatActivity() {
             try {
                 val text = editable.toString()
                 if (text.length > 50000) { applyMinimalHighlighting(editable, text); return }
+                
                 removeOldSpans(editable)
+                
+                // Порядок важен: сначала строки и комментарии, чтобы их содержимое не перекрашивалось
                 applyPatternSafe(editable, text, stringPattern, colorString)
                 applyPatternSafe(editable, text, commentPattern, colorComment)
+                
+                // Затем операторы, ключевые слова, функции и числа
                 applyPatternSafe(editable, text, operatorPattern, colorOperator)
                 applyPatternSafe(editable, text, keywordPattern, colorKeyword)
                 applyPatternSafe(editable, text, functionPattern, colorFunction)
                 applyPatternSafe(editable, text, numberPattern, colorNumber)
+                
             } catch (e: Exception) {
                 android.util.Log.w("TesseractHighlighter", "Error applying syntax highlighting", e)
             }
@@ -456,39 +470,68 @@ class TesseractActivity : AppCompatActivity() {
                 val matcher = pattern.matcher(text)
                 while (matcher.find()) {
                     if (!isActive) return
-                    val start = matcher.start(); val end = matcher.end()
+                    val start = matcher.start()
+                    val end = matcher.end()
                     if (start < 0 || end > text.length || start >= end) continue
+                    
                     if (!isInsideStringOrComment(text, start, end)) {
-                        try { editable.setSpan(ForegroundColorSpan(color), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } catch (e: Exception) {}
+                        try { 
+                            editable.setSpan(ForegroundColorSpan(color), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) 
+                        } catch (e: Exception) {}
                     }
                 }
             } catch (e: Exception) {}
         }
         
+        // ИСПРАВЛЕНО: Железобетонная логика пропуска экранированных символов
         private fun isInsideStringOrComment(text: String, start: Int, end: Int): Boolean {
             try {
-                var inDoubleQuote = false; var inSingleQuote = false; var inBacktick = false; var blockCommentDepth = 0; var i = 0
-                while (i < start && i < text.length) {
+                var inDoubleQuote = false
+                var inSingleQuote = false
+                var inBacktick = false
+                var blockCommentDepth = 0
+                var i = 0
+                
+                while (i < start) {
+                    // Если видим слеш, пропускаем его и следующий символ целиком (это экранирование)
+                    if (text[i] == '\\') {
+                        i += 2
+                        continue
+                    }
+                    
                     val char = text[i]
-                    if (i > 0 && text[i - 1] == '\\') { i++; continue }
                     when (char) {
                         '"' -> if (!inSingleQuote && !inBacktick && blockCommentDepth == 0) inDoubleQuote = !inDoubleQuote
                         '\'' -> if (!inDoubleQuote && !inBacktick && blockCommentDepth == 0) inSingleQuote = !inSingleQuote
                         '`' -> if (!inDoubleQuote && !inSingleQuote && blockCommentDepth == 0) inBacktick = !inBacktick
                     }
+                    
                     if (blockCommentDepth == 0) {
-                        if (i < text.length - 1 && text[i] == '/' && text[i + 1] == '*') { blockCommentDepth++; i += 2; continue }
+                        if (i < text.length - 1 && text[i] == '/' && text[i + 1] == '*') { 
+                            blockCommentDepth++
+                            i += 2
+                            continue 
+                        }
                     } else {
-                        if (i < text.length - 1 && text[i] == '*' && text[i + 1] == '/') { blockCommentDepth--; i += 2; continue }
+                        if (i < text.length - 1 && text[i] == '*' && text[i + 1] == '/') { 
+                            blockCommentDepth--
+                            i += 2
+                            continue 
+                        }
                     }
                     i++
                 }
+                
                 if (inDoubleQuote || inSingleQuote || inBacktick || blockCommentDepth > 0) return true
+                
                 val lineStart = text.lastIndexOf('\n', start - 1) + 1
                 val linePrefix = text.substring(lineStart, start)
                 if (linePrefix.contains("//") || linePrefix.contains("#")) return true
+                
                 return false
-            } catch (e: Exception) { return false }
+            } catch (e: Exception) { 
+                return false 
+            }
         }
         
         fun cleanup() {
