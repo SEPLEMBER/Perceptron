@@ -611,7 +611,6 @@ class Evaluator3(private val context: Context) {
                 null
             }
             is Stmt3.ExprStmt -> eval(node.expr)
-            // 🔥🔥🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Локальные функции теперь регистрируются в текущем окружении! 🔥🔥🔥
             is Stmt3.FunctionDef -> {
                 env.declare(node.name, TValue3.TFunction(node.params, node.body, env))
                 null
@@ -1122,8 +1121,15 @@ class Evaluator3(private val context: Context) {
                     val value = args[1]
                     
                     fun matchRec(p: TValue3, v: TValue3): Map<String, TValue3>? {
+                        // 🔥 ИСПРАВЛЕНО: Сначала проверяем переменные-образцы (Prolog-style "?X")
+                        if (p is TValue3.TStr && p.value.startsWith("?")) {
+                            return mapOf(p.value.substring(1) to v)
+                        }
+                        
+                        // Затем wildcard ("_")
                         if (p is TValue3.TStr && p.value.startsWith("_")) return emptyMap()
                         
+                        // И только потом точное совпадение примитивов
                         if (p is TValue3.TNum && v is TValue3.TNum) {
                             return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
                         }
@@ -1137,6 +1143,7 @@ class Evaluator3(private val context: Context) {
                             return if (p.value == v.value) emptyMap() else null
                         }
                         
+                        // Массивы: рекурсивная унификация
                         if (p is TValue3.TArray && v is TValue3.TArray) {
                             if (p.items.size != v.items.size) return null
                             var bindings = mutableMapOf<String, TValue3>()
@@ -1148,10 +1155,6 @@ class Evaluator3(private val context: Context) {
                                 }
                             }
                             return bindings
-                        }
-                        
-                        if (p is TValue3.TStr && p.value.startsWith("?")) {
-                            return mapOf(p.value.substring(1) to v)
                         }
                         
                         return null
