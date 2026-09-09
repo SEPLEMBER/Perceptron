@@ -716,9 +716,38 @@ class Evaluator3(private val context: Context) {
                     TValue3.TNum(left.toDouble() + right.toDouble())
                 }
             }
-            TokenType3.MINUS -> TValue3.TNum(left.toDouble() - right.toDouble())
-            TokenType3.MUL -> TValue3.TNum(left.toDouble() * right.toDouble())
-            TokenType3.DIV -> { MathGuard3.checkDivision(right, node.line); TValue3.TNum(left.toDouble() / right.toDouble()) }
+            // 🔥 ИСПРАВЛЕНО: Добавлена поддержка метатаблиц для -, *, /
+            TokenType3.MINUS -> {
+                if (left is TValue3.TArray && right is TValue3.TArray) {
+                    val mt = left.metatable ?: right.metatable
+                    if (mt is TValue3.TArray && mt.fields.containsKey("__sub")) {
+                        val subFn = mt.fields["__sub"]
+                        if (subFn is TValue3.TFunction) return callTFunction(subFn, listOf(left, right), node.line)
+                    }
+                }
+                TValue3.TNum(left.toDouble() - right.toDouble())
+            }
+            TokenType3.MUL -> {
+                if (left is TValue3.TArray && right is TValue3.TArray) {
+                    val mt = left.metatable ?: right.metatable
+                    if (mt is TValue3.TArray && mt.fields.containsKey("__mul")) {
+                        val mulFn = mt.fields["__mul"]
+                        if (mulFn is TValue3.TFunction) return callTFunction(mulFn, listOf(left, right), node.line)
+                    }
+                }
+                TValue3.TNum(left.toDouble() * right.toDouble())
+            }
+            TokenType3.DIV -> {
+                if (left is TValue3.TArray && right is TValue3.TArray) {
+                    val mt = left.metatable ?: right.metatable
+                    if (mt is TValue3.TArray && mt.fields.containsKey("__div")) {
+                        val divFn = mt.fields["__div"]
+                        if (divFn is TValue3.TFunction) return callTFunction(divFn, listOf(left, right), node.line)
+                    }
+                }
+                MathGuard3.checkDivision(right, node.line)
+                TValue3.TNum(left.toDouble() / right.toDouble())
+            }
             TokenType3.INT_DIV -> { MathGuard3.checkDivision(right, node.line); TValue3.TInt(left.toLong() / right.toLong()) }
             TokenType3.MOD -> { MathGuard3.checkDivision(right, node.line); TValue3.TNum(left.toDouble() % right.toDouble()) }
             TokenType3.POW -> { val r = left.toDouble().pow(right.toDouble()); MathGuard3.checkOverflow(r, node.line); TValue3.TNum(r) }
@@ -807,7 +836,6 @@ class Evaluator3(private val context: Context) {
                         throw TesseractError3("setmetatable first argument must be an array/table", node.line)
                     }
                 }
-                // 🚀 НОВЫЕ ФУНКЦИОНАЛЬНЫЕ МЕТОДЫ: map, filter, reduce
                 "map" -> {
                     if (args.size != 2) throw TesseractError3("map requires array and function", node.line)
                     val arr = args[0]
