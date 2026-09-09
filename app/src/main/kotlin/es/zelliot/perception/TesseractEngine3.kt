@@ -191,6 +191,8 @@ sealed class Expr3 : Node3() {
     data class MethodCall(val target: Expr3, val methodName: String, val args: List<Expr3>, override val line: Int) : Expr3()
     data class AnonymousFunc(val params: List<String>, val body: List<Stmt3>, override val line: Int) : Expr3()
     data class ReturnExpr(val value: Expr3?, override val line: Int) : Expr3()
+    // 🔥 НОВЫЙ УЗЕЛ: Блочное выражение для поддержки {...} после then/else
+    data class BlockExpr(val statements: List<Stmt3>, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
     data class Assignment(val name: String, val value: Expr3, override val line: Int, val isDeclaration: Boolean = false) : Stmt3()
@@ -314,7 +316,24 @@ class Parser3(private val tokens: List<Token3>) {
         var expr: Expr3 = when (token.type) {
             TokenType3.NUMBER -> { advance(); if (token.value.contains('.') || token.value.contains('e', true)) Expr3.NumLit(token.value.toDouble(), token.line) else Expr3.IntLit(token.value.toLong(), token.line) }
             TokenType3.STRING -> { advance(); Expr3.StrLit(token.value, token.line) }
-            TokenType3.IF -> { advance(); val cond = parseExpression(); expect(TokenType3.THEN); val thenExpr = parseExpression(); expect(TokenType3.ELSE); Expr3.IfElse(cond, thenExpr, parseExpression(), token.line) }
+            // 🔥 ИСПРАВЛЕНО: Поддержка блоков {...} после then и else
+            TokenType3.IF -> { 
+                advance()
+                val cond = parseExpression()
+                expect(TokenType3.THEN)
+                val thenExpr = if (peek().type == TokenType3.LBRACE) {
+                    Expr3.BlockExpr(parseBlock(), peek().line)
+                } else {
+                    parseExpression()
+                }
+                expect(TokenType3.ELSE)
+                val elseExpr = if (peek().type == TokenType3.LBRACE) {
+                    Expr3.BlockExpr(parseBlock(), peek().line)
+                } else {
+                    parseExpression()
+                }
+                Expr3.IfElse(cond, thenExpr, elseExpr, token.line)
+            }
             TokenType3.FN -> {
                 advance()
                 val params = mutableListOf<String>()
@@ -438,7 +457,7 @@ class Evaluator3(private val context: Context) {
             for (stmt in statements) {
                 when (stmt) {
                     is Stmt3.SeparatorStmt -> results.add("---")
-                    is Stmt3.FunctionDef -> {} // Top-level already registered in userFunctions
+                    is Stmt3.FunctionDef -> {}
                     is Stmt3.Assignment -> { if (!constantOverrides.containsKey(stmt.name)) env.set(stmt.name, eval(stmt.value)) }
                     else -> { val res = evalStmt(stmt); if (res != null && res !is TValue3.TNull) results.add(res.displayString()) }
                 }
@@ -655,6 +674,12 @@ class Evaluator3(private val context: Context) {
             is Expr3.ArrayLit -> TValue3.TArray(node.elements.map { eval(it) }.toMutableList())
             is Expr3.AnonymousFunc -> TValue3.TFunction(node.params, node.body, env)
             is Expr3.ReturnExpr -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
+            // 🔥 НОВАЯ ОБРАБОТКА: Блочные выражения
+            is Expr3.BlockExpr -> {
+                var res: TValue3? = null
+                for (stmt in node.statements) res = evalStmt(stmt)
+                res ?: TValue3.TNull
+            }
             is Expr3.IndexAccess -> {
                 val target = eval(node.target)
                 val indexVal = eval(node.index)
@@ -752,17 +777,62 @@ class Evaluator3(private val context: Context) {
             }
             
             val res = when (node.op) {
+                // 🔥 ИСПРАВЛЕНО: Корректное сравнение с TNull и TArray
                 TokenType3.EQ -> {
-                    if (left is TValue3.TStr && right is TValue3.TStr) left.value == right.value
-                    else if (left is TValue3.TBool && right is TValue3.TBool) left.value == right.value
-                    else if (left is TValue3.TInt && right is TValue3.TInt) left.value == right.value
-                    else abs(left.toDouble() - right.toDouble()) < 1e-9
+                    when {
+                        left is TValue3.TStr && right is TValue3.TStr -> left.value == right.value
+                        left is TValue3.TBool && right is TValue3.TBool -> left.value == right.value
+                        left is TValue3.TInt && right is TValue3.TInt -> left.value == right.value
+                        left is TValue3.TNum && right is TValue3.TNum -> abs(left.value - right.value) < 1e-9
+                        left is TValue3.TInt && right is TValue3.TNum -> abs(left.value.toDouble() - right.value) < 1e-9
+                        left is TValue3.TNum && right is TValue3.TInt -> abs(left.value - right.value.toDouble()) < 1e-9
+                        left is TValue3.TNull && right is TValue3.TNull -> true
+                        left is TValue3.TNull || right is TValue3.TNull -> false
+                        left is TValue3.TArray && right is TValue3.TArray -> {
+                            if (left.items.size != right.items.size) false
+                            else {
+                                var eq = true
+                                for (i in left.items.indices) {
+                                    if (left.items[i].displayString() != right.items[i].displayString()) {
+                                        eq = false
+                                        break
+                                    }
+                                }
+                                eq
+                            }
+                        }
+                        left is TValue3.TArray || right is TValue3.TArray -> false
+                        left is TValue3.TFunction && right is TValue3.TFunction -> false
+                        else -> false
+                    }
                 }
                 TokenType3.NEQ -> {
-                    if (left is TValue3.TStr && right is TValue3.TStr) left.value != right.value
-                    else if (left is TValue3.TBool && right is TValue3.TBool) left.value != right.value
-                    else if (left is TValue3.TInt && right is TValue3.TInt) left.value != right.value
-                    else abs(left.toDouble() - right.toDouble()) >= 1e-9
+                    when {
+                        left is TValue3.TStr && right is TValue3.TStr -> left.value != right.value
+                        left is TValue3.TBool && right is TValue3.TBool -> left.value != right.value
+                        left is TValue3.TInt && right is TValue3.TInt -> left.value != right.value
+                        left is TValue3.TNum && right is TValue3.TNum -> abs(left.value - right.value) >= 1e-9
+                        left is TValue3.TInt && right is TValue3.TNum -> abs(left.value.toDouble() - right.value) >= 1e-9
+                        left is TValue3.TNum && right is TValue3.TInt -> abs(left.value - right.value.toDouble()) >= 1e-9
+                        left is TValue3.TNull && right is TValue3.TNull -> false
+                        left is TValue3.TNull || right is TValue3.TNull -> true
+                        left is TValue3.TArray && right is TValue3.TArray -> {
+                            if (left.items.size != right.items.size) true
+                            else {
+                                var eq = true
+                                for (i in left.items.indices) {
+                                    if (left.items[i].displayString() != right.items[i].displayString()) {
+                                        eq = false
+                                        break
+                                    }
+                                }
+                                !eq
+                            }
+                        }
+                        left is TValue3.TArray || right is TValue3.TArray -> true
+                        left is TValue3.TFunction && right is TValue3.TFunction -> true
+                        else -> true
+                    }
                 }
                 TokenType3.GT -> if (left is TValue3.TStr && right is TValue3.TStr) left.value > right.value else left.toDouble() > right.toDouble()
                 TokenType3.LT -> if (left is TValue3.TStr && right is TValue3.TStr) left.value < right.value else left.toDouble() < right.toDouble()
@@ -1121,15 +1191,12 @@ class Evaluator3(private val context: Context) {
                     val value = args[1]
                     
                     fun matchRec(p: TValue3, v: TValue3): Map<String, TValue3>? {
-                        // 🔥 ИСПРАВЛЕНО: Сначала проверяем переменные-образцы (Prolog-style "?X")
                         if (p is TValue3.TStr && p.value.startsWith("?")) {
                             return mapOf(p.value.substring(1) to v)
                         }
                         
-                        // Затем wildcard ("_")
                         if (p is TValue3.TStr && p.value.startsWith("_")) return emptyMap()
                         
-                        // И только потом точное совпадение примитивов
                         if (p is TValue3.TNum && v is TValue3.TNum) {
                             return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
                         }
@@ -1143,7 +1210,6 @@ class Evaluator3(private val context: Context) {
                             return if (p.value == v.value) emptyMap() else null
                         }
                         
-                        // Массивы: рекурсивная унификация
                         if (p is TValue3.TArray && v is TValue3.TArray) {
                             if (p.items.size != v.items.size) return null
                             var bindings = mutableMapOf<String, TValue3>()
