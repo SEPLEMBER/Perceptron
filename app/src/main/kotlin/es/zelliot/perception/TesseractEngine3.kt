@@ -193,9 +193,10 @@ sealed class Expr3 : Node3() {
     data class ReturnExpr(val value: Expr3?, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
-    data class Assignment(val name: String, val value: Expr3, override val line: Int) : Stmt3()
+    // 🔥 ИСПРАВЛЕНО: Добавлен флаг isDeclaration для поддержки variable shadowing
+    data class Assignment(val name: String, val value: Expr3, override val line: Int, val isDeclaration: Boolean = false) : Stmt3()
     data class IndexAssignment(val target: Expr3, val index: Expr3, val value: Expr3, override val line: Int) : Stmt3()
-    data class DestructuringAssignment(val names: List<String>, val value: Expr3, override val line: Int) : Stmt3()
+    data class DestructuringAssignment(val names: List<String>, val value: Expr3, override val line: Int, val isDeclaration: Boolean = false) : Stmt3()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt3>, override val line: Int) : Stmt3()
     data class AssertStmt(val condition: Expr3, override val line: Int) : Stmt3()
     data class ReturnStmt(val value: Expr3?, override val line: Int) : Stmt3()
@@ -245,12 +246,14 @@ class Parser3(private val tokens: List<Token3>) {
                     }
                     expect(TokenType3.RBRACKET)
                     expect(TokenType3.ASSIGN)
-                    Stmt3.DestructuringAssignment(names, parseExpression(), current.line)
+                    // 🔥 ИСПРАВЛЕНО: Деструктуризация с var/val - это объявление
+                    Stmt3.DestructuringAssignment(names, parseExpression(), current.line, isDeclaration = true)
                 } else {
                     val nameToken = expect(TokenType3.IDENTIFIER)
                     if (peek().type == TokenType3.COLON) { advance(); advance() }
                     expect(TokenType3.ASSIGN)
-                    Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line)
+                    // 🔥 ИСПРАВЛЕНО: var/val - это объявление
+                    Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line, isDeclaration = true)
                 }
             }
             TokenType3.IDENTIFIER -> {
@@ -259,7 +262,7 @@ class Parser3(private val tokens: List<Token3>) {
                     advance()
                     val rvalueExpr = parseExpression()
                     when (lvalueExpr) {
-                        is Expr3.VarRef -> Stmt3.Assignment(lvalueExpr.name, rvalueExpr, lvalueExpr.line)
+                        is Expr3.VarRef -> Stmt3.Assignment(lvalueExpr.name, rvalueExpr, lvalueExpr.line, isDeclaration = false)
                         is Expr3.IndexAccess -> Stmt3.IndexAssignment(lvalueExpr.target, lvalueExpr.index, rvalueExpr, lvalueExpr.line)
                         else -> throw TesseractError3("Invalid assignment target", lvalueExpr.line)
                     }
@@ -397,6 +400,11 @@ class Environment3(private val parent: Environment3? = null) {
         }
     }
     
+    // 🔥 НОВЫЙ МЕТОД: Для явного объявления переменных (var/val) с поддержкой shadowing
+    fun declare(name: String, value: TValue3) {
+        values[name] = value
+    }
+    
     fun createChild(): Environment3 = Environment3(this)
 }
 
@@ -463,7 +471,8 @@ class Evaluator3(private val context: Context) {
         val localEnv = func.closureEnv.createChild()
         val oldEnv = env
         env = localEnv
-        for (i in func.params.indices) env.set(func.params[i], args[i])
+        // 🔥 ИСПРАВЛЕНО: Параметры функции объявляются локально
+        for (i in func.params.indices) env.declare(func.params[i], args[i])
         
         val result = try { 
             var res: TValue3? = null
@@ -518,13 +527,21 @@ class Evaluator3(private val context: Context) {
         return when (node) {
             is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
             is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
-            is Stmt3.Assignment -> { env.set(node.name, eval(node.value)); null }
+            is Stmt3.Assignment -> { 
+                val evaluatedValue = eval(node.value)
+                // 🔥 ИСПРАВЛЕНО: Поддержка variable shadowing
+                if (node.isDeclaration) env.declare(node.name, evaluatedValue)
+                else env.set(node.name, evaluatedValue)
+                null 
+            }
             is Stmt3.DestructuringAssignment -> {
                 val value = eval(node.value)
                 if (value is TValue3.TArray) {
                     for (i in node.names.indices) {
                         val valToAssign = if (i < value.items.size) value.items[i] else TValue3.TNull
-                        env.set(node.names[i], valToAssign)
+                        // 🔥 ИСПРАВЛЕНО: Поддержка variable shadowing
+                        if (node.isDeclaration) env.declare(node.names[i], valToAssign)
+                        else env.set(node.names[i], valToAssign)
                     }
                 } else {
                     throw TesseractError3("Can only destructure arrays", node.line, callStack.toList())
@@ -581,7 +598,8 @@ class Evaluator3(private val context: Context) {
                 var i = startVal
                 while (if (step > 0) i <= endVal else i >= endVal) {
                     if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
-                    env.set(node.varName, TValue3.TInt(i))
+                    // 🔥 ИСПРАВЛЕНО: Переменная цикла объявляется локально
+                    env.declare(node.varName, TValue3.TInt(i))
                     for (stmt in node.body) evalStmt(stmt)
                     i += step
                     if (++iterations > 1_000_000) throw TesseractError3("For loop iteration limit (1M)", node.line, callStack.toList())
@@ -594,7 +612,8 @@ class Evaluator3(private val context: Context) {
                 val items = when (collection) { is TValue3.TArray -> collection.items; is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }; else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList()) }
                 for (item in items) {
                     if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
-                    env.set(node.varName, item)
+                    // 🔥 ИСПРАВЛЕНО: Переменная цикла объявляется локально
+                    env.declare(node.varName, item)
                     for (stmt in node.body) evalStmt(stmt)
                     if (++iterations > 1_000_000) throw TesseractError3("For-in loop iteration limit (1M)", node.line, callStack.toList())
                 }
@@ -610,19 +629,13 @@ class Evaluator3(private val context: Context) {
             is Expr3.NumLit -> TValue3.TNum(node.value)
             is Expr3.IntLit -> TValue3.TInt(node.value)
             is Expr3.StrLit -> TValue3.TStr(node.value)
-            // 🔥🔥🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Функции как объекты первого класса 🔥🔥🔥
             is Expr3.VarRef -> {
                 val envVal = env.get(node.name)
                 if (envVal != null) return envVal
-                
-                // Если переменная не найдена, проверяем, не является ли она user-функцией
                 val userFunc = userFunctions[node.name]
                 if (userFunc != null) {
-                    // Создаём TFunction на основе FunctionDef, используя ТЕКУЩЕЕ окружение как замыкание
-                    // Это позволяет передавать именованные функции как значения (Scheme/Lisp стиль)
                     return TValue3.TFunction(userFunc.params, userFunc.body, env)
                 }
-                
                 throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
             }
             is Expr3.UnaryOp -> { 
@@ -847,7 +860,8 @@ class Evaluator3(private val context: Context) {
             if (++recursionDepth > 2000) throw TesseractError3("Recursion depth exceeded (2000)", node.line, callStack.toList())
             callStack.add("${node.name}()"); if (node.args.size != userFunc.params.size) throw TesseractError3("Argument mismatch for $node.name", node.line, callStack.toList())
             val localEnv = env.createChild(); val oldEnv = env; env = localEnv
-            for (i in userFunc.params.indices) env.set(userFunc.params[i], eval(node.args[i]))
+            // 🔥 ИСПРАВЛЕНО: Параметры функции объявляются локально
+            for (i in userFunc.params.indices) env.declare(userFunc.params[i], eval(node.args[i]))
             val result = try { var res: TValue3? = null; for (stmt in userFunc.body) res = evalStmt(stmt); res ?: TValue3.TInt(0) } catch (e: ReturnValue3) { e.value ?: TValue3.TInt(0) } finally { env = oldEnv; callStack.removeLast(); recursionDepth-- }
             return result
         }
