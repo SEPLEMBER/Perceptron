@@ -307,10 +307,17 @@ class TesseractActivity : AppCompatActivity() {
                     return@launch
                 }
 
+                // ВАРИАНТ Б: Проверка на наличие уникальных ключевых слов или операторов Engine 4
+                val isEngine4Script = Regex("\\b(matrix|complex|gcd|lcm|factorial|comb|perm|is_finite|is_integer|is_close|rational|differentiate|integrate|simplify|solve|factor|expand|mempty|mappend|fmap|ap|bind|pure|transpose|det|inverse|dot|norm|cross|identity|zeros|ones|hypot|atan2|degrees|radians|sign|clamp|arg|conj|real|imag)\\b|\\*\\*").containsMatchIn(script)
+
                 val result = try {
                     withContext(Dispatchers.Default) {
                         withTimeout(3000) {
-                            TesseractEngine3.evaluate(this@TesseractActivity, script, emptyMap())
+                            if (isEngine4Script) {
+                                TesseractEngine4.evaluate(this@TesseractActivity, script, emptyMap())
+                            } else {
+                                TesseractEngine3.evaluate(this@TesseractActivity, script, emptyMap())
+                            }
                         }
                     }
                 } catch (e: TimeoutCancellationException) {
@@ -334,6 +341,25 @@ class TesseractActivity : AppCompatActivity() {
                 }
 
             } catch (e: TesseractOpenActCommand3) {
+                val target = e.packageName
+                try {
+                    val intent: Intent? = if (target.contains("/")) {
+                        val parts = target.split("/", limit = 2)
+                        Intent().setClassName(parts[0], parts[1])
+                    } else {
+                        packageManager.getLaunchIntentForPackage(target)
+                    }
+                    if (intent != null) {
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
+                        showResult(getString(R.string.toast_transition_success, target))
+                    } else {
+                        showResult(getString(R.string.error_open_target_tips, target))
+                    }
+                } catch (ex: Exception) {
+                    showResult(getString(R.string.error_open_target_exception, target, ex.message ?: "Unknown"))
+                }
+            } catch (e: TesseractOpenActCommand4) { // Добавлена поддержка исключений Engine 4
                 val target = e.packageName
                 try {
                     val intent: Intent? = if (target.contains("/")) {
