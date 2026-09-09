@@ -61,7 +61,7 @@ sealed class TValue4 {
             if (im == 0.0) r else if (re == 0.0) "${i}i" else "$r + ${i}i" 
         }
         is TMatrix -> "Matrix(${rows}x${cols})"
-        is TRational -> "${num}/${den}"
+        is TRational -> if (den == BigInteger.ONE) num.toString() else "${num}/${den}"
         is TPoly -> { 
             if (coeffs.isEmpty()) "0" else coeffs.mapIndexed { i, c -> 
                 if (c == 0.0) null else if (i == 0) c.toString() else if (i == 1) "${c}x" else "${c}x^$i" 
@@ -209,7 +209,6 @@ class Parser4(private val tokens: List<Token4>) {
         val current = peek()
         return when (current.type) {
             TokenType4.FN -> parseFunctionDef()
-            // 🔥 УЛУЧШЕНО: Поддержка синтаксиса assert(...) со скобками И без них
             TokenType4.ASSERT -> { 
                 val currentToken = peek()
                 advance()
@@ -389,10 +388,77 @@ class Evaluator4(private val context: Context) {
         if (node.op == TokenType4.OR) return TValue4.TBool(left.toBoolean() || right.toBoolean())
         if (node.op in listOf(TokenType4.GT, TokenType4.LT, TokenType4.GTE, TokenType4.LTE, TokenType4.EQ, TokenType4.NEQ)) {
             val res = when (node.op) {
-                TokenType4.EQ -> left.displayString() == right.displayString()
-                TokenType4.NEQ -> left.displayString() != right.displayString()
-                TokenType4.GT -> left.toDouble() > right.toDouble(); TokenType4.LT -> left.toDouble() < right.toDouble()
-                TokenType4.GTE -> left.toDouble() >= right.toDouble(); TokenType4.LTE -> left.toDouble() <= right.toDouble()
+                TokenType4.EQ -> {
+                    when {
+                        left is TValue4.TStr && right is TValue4.TStr -> left.value == right.value
+                        left is TValue4.TBool && right is TValue4.TBool -> left.value == right.value
+                        left is TValue4.TInt && right is TValue4.TInt -> left.value == right.value
+                        left is TValue4.TNum && right is TValue4.TNum -> abs(left.value - right.value) < 1e-9
+                        left is TValue4.TInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) < 1e-9
+                        left is TValue4.TNum && right is TValue4.TInt -> abs(left.value - right.value.toDouble()) < 1e-9
+                        left is TValue4.TNull && right is TValue4.TNull -> true
+                        left is TValue4.TNull || right is TValue4.TNull -> false
+                        left is TValue4.TArray && right is TValue4.TArray -> {
+                            if (left.items.size != right.items.size) false
+                            else {
+                                var eq = true
+                                for (i in left.items.indices) {
+                                    if (left.items[i].displayString() != right.items[i].displayString()) {
+                                        eq = false
+                                        break
+                                    }
+                                }
+                                eq
+                            }
+                        }
+                        left is TValue4.TArray || right is TValue4.TArray -> false
+                        left is TValue4.TFunction && right is TValue4.TFunction -> false
+                        // 🔥 ИСПРАВЛЕНО: Математически корректное сравнение дробей
+                        left is TValue4.TRational && right is TValue4.TRational -> left.num * right.den == right.num * left.den
+                        left is TValue4.TRational && right is TValue4.TInt -> left.num == right.value.toBigInteger() * left.den
+                        left is TValue4.TInt && right is TValue4.TRational -> right.num == left.value.toBigInteger() * right.den
+                        left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) < 1e-9
+                        left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) < 1e-9
+                        else -> left.displayString() == right.displayString()
+                    }
+                }
+                TokenType4.NEQ -> {
+                    when {
+                        left is TValue4.TStr && right is TValue4.TStr -> left.value != right.value
+                        left is TValue4.TBool && right is TValue4.TBool -> left.value != right.value
+                        left is TValue4.TInt && right is TValue4.TInt -> left.value != right.value
+                        left is TValue4.TNum && right is TValue4.TNum -> abs(left.value - right.value) >= 1e-9
+                        left is TValue4.TInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) >= 1e-9
+                        left is TValue4.TNum && right is TValue4.TInt -> abs(left.value - right.value.toDouble()) >= 1e-9
+                        left is TValue4.TNull && right is TValue4.TNull -> false
+                        left is TValue4.TNull || right is TValue4.TNull -> true
+                        left is TValue4.TArray && right is TValue4.TArray -> {
+                            if (left.items.size != right.items.size) true
+                            else {
+                                var eq = true
+                                for (i in left.items.indices) {
+                                    if (left.items[i].displayString() != right.items[i].displayString()) {
+                                        eq = false
+                                        break
+                                    }
+                                }
+                                !eq
+                            }
+                        }
+                        left is TValue4.TArray || right is TValue4.TArray -> true
+                        left is TValue4.TFunction && right is TValue4.TFunction -> true
+                        left is TValue4.TRational && right is TValue4.TRational -> left.num * right.den != right.num * left.den
+                        left is TValue4.TRational && right is TValue4.TInt -> left.num != right.value.toBigInteger() * left.den
+                        left is TValue4.TInt && right is TValue4.TRational -> right.num != left.value.toBigInteger() * right.den
+                        left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) >= 1e-9
+                        left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) >= 1e-9
+                        else -> left.displayString() != right.displayString()
+                    }
+                }
+                TokenType4.GT -> left.toDouble() > right.toDouble()
+                TokenType4.LT -> left.toDouble() < right.toDouble()
+                TokenType4.GTE -> left.toDouble() >= right.toDouble()
+                TokenType4.LTE -> left.toDouble() <= right.toDouble()
                 else -> false
             }
             return TValue4.TBool(res)
@@ -401,11 +467,20 @@ class Evaluator4(private val context: Context) {
         if (left is TValue4.TRational || right is TValue4.TRational) {
             val l = if (left is TValue4.TRational) left else TValue4.TRational(BigInteger.valueOf(left.toLong()), BigInteger.ONE)
             val r = if (right is TValue4.TRational) right else TValue4.TRational(BigInteger.valueOf(right.toLong()), BigInteger.ONE)
+            
+            // 🔥 ИСПРАВЛЕНО: Автоматическое сокращение дробей после операций
+            fun simplify(num: BigInteger, den: BigInteger): TValue4.TRational {
+                val g = num.gcd(den)
+                val n = num / g
+                val d = den / g
+                return if (d < BigInteger.ZERO) TValue4.TRational(-n, -d) else TValue4.TRational(n, d)
+            }
+
             return when (node.op) {
-                TokenType4.PLUS -> TValue4.TRational(l.num * r.den + r.num * l.den, l.den * r.den)
-                TokenType4.MINUS -> TValue4.TRational(l.num * r.den - r.num * l.den, l.den * r.den)
-                TokenType4.MUL -> TValue4.TRational(l.num * r.num, l.den * r.den)
-                TokenType4.DIV -> { MathGuard4.checkDivision(right, node.line); TValue4.TRational(l.num * r.den, l.den * r.num) }
+                TokenType4.PLUS -> simplify(l.num * r.den + r.num * l.den, l.den * r.den)
+                TokenType4.MINUS -> simplify(l.num * r.den - r.num * l.den, l.den * r.den)
+                TokenType4.MUL -> simplify(l.num * r.num, l.den * r.den)
+                TokenType4.DIV -> { MathGuard4.checkDivision(right, node.line); simplify(l.num * r.den, l.den * r.num) }
                 else -> throw TesseractError4("Rational operator error", node.line)
             }
         }
