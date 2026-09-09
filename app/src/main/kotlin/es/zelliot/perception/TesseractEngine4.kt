@@ -579,11 +579,11 @@ class Evaluator4(private val context: Context) {
             when (node.name) {
                 "print" -> { results.add(args.joinToString(" ") { it.displayString() }); TValue4.TNull }
                 
-                "real", "re" -> TValue4.TNum((args[0] as TValue4.TComplex).re)
-                "imag", "im" -> TValue4.TNum((args[0] as TValue4.TComplex).im)
+                "real", "re" -> TValue4.TNum((args[0] as? TValue4.TComplex)?.re ?: throw TesseractError4("re requires complex", node.line))
+                "imag", "im" -> TValue4.TNum((args[0] as? TValue4.TComplex)?.im ?: throw TesseractError4("im requires complex", node.line))
                 
                 "inverse", "inv" -> {
-                    val m = args[0] as TValue4.TMatrix
+                    val m = args[0] as? TValue4.TMatrix ?: throw TesseractError4("inv requires matrix", node.line)
                     if (m.rows != m.cols) throw TesseractError4("Inv requires square matrix", node.line)
                     val n = m.rows
                     val aug = Array(n) { i -> DoubleArray(2 * n) { j -> if (j < n) m.data[i * n + j] else if (j - n == i) 1.0 else 0.0 } }
@@ -607,17 +607,17 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "derivative", "diff" -> {
-                    val p = args[0] as TValue4.TPoly
+                    val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("diff requires poly", node.line)
                     if (p.coeffs.size <= 1) TValue4.TPoly(listOf(0.0)) else TValue4.TPoly(p.coeffs.drop(1).mapIndexed { i, c -> c * (i + 1) })
                 }
                 
                 "antiderivative", "integrate" -> {
-                    val p = args[0] as TValue4.TPoly
+                    val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("integrate requires poly", node.line)
                     TValue4.TPoly(listOf(0.0) + p.coeffs.mapIndexed { i, c -> c / (i + 1) })
                 }
                 
-                "expand" -> { val p = args[0] as TValue4.TPoly; p }
-                "simplify" -> { val p = args[0] as TValue4.TPoly; TValue4.TPoly(p.coeffs.filter { it != 0.0 }.ifEmpty { listOf(0.0) }) }
+                "expand" -> { val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("expand requires poly", node.line); p }
+                "simplify" -> { val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("simplify requires poly", node.line); TValue4.TPoly(p.coeffs.filter { it != 0.0 }.ifEmpty { listOf(0.0) }) }
                 
                 "rational" -> {
                     val num = BigInteger.valueOf(args[0].toLong())
@@ -627,13 +627,13 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "matrix" -> {
-                    val arr = args[0] as TValue4.TArray
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("matrix requires array", node.line)
                     val rows = arr.items.size
-                    val cols = (arr.items[0] as TValue4.TArray).items.size
+                    val cols = (arr.items[0] as? TValue4.TArray)?.items?.size ?: throw TesseractError4("matrix requires 2D array", node.line)
                     val data = DoubleArray(rows * cols)
                     for (i in 0 until rows) {
                         for (j in 0 until cols) {
-                            data[i * cols + j] = (arr.items[i] as TValue4.TArray).items[j].toDouble()
+                            data[i * cols + j] = (arr.items[i] as? TValue4.TArray)?.items?.get(j)?.toDouble() ?: throw TesseractError4("matrix requires 2D array", node.line)
                         }
                     }
                     TValue4.TMatrix(rows, cols, data)
@@ -656,7 +656,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "transpose" -> {
-                    val m = args[0] as TValue4.TMatrix
+                    val m = args[0] as? TValue4.TMatrix ?: throw TesseractError4("transpose requires matrix", node.line)
                     val d = DoubleArray(m.rows * m.cols)
                     for (i in 0 until m.rows) {
                         for (j in 0 until m.cols) {
@@ -667,7 +667,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "det" -> {
-                    val m = args[0] as TValue4.TMatrix
+                    val m = args[0] as? TValue4.TMatrix ?: throw TesseractError4("det requires matrix", node.line)
                     if (m.rows != m.cols) throw TesseractError4("Det requires square matrix", node.line)
                     val n = m.rows
                     val a = Array(n) { i -> DoubleArray(n) { j -> m.data[i * n + j] } }
@@ -701,8 +701,8 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "solve" -> {
-                    val m = args[0] as TValue4.TMatrix
-                    val bArr = args[1] as TValue4.TArray
+                    val m = args[0] as? TValue4.TMatrix ?: throw TesseractError4("solve requires matrix", node.line)
+                    val bArr = args[1] as? TValue4.TArray ?: throw TesseractError4("solve requires array", node.line)
                     val a = Array(m.rows) { i -> DoubleArray(m.cols) { j -> m.data[i * m.cols + j] } }
                     val b = DoubleArray(bArr.items.size) { bArr.items[it].toDouble() }
                     val x = solveGauss(a, b)
@@ -710,16 +710,16 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "dot" -> {
-                    val a = args[0] as TValue4.TArray
-                    val b = args[1] as TValue4.TArray
+                    val a = args[0] as? TValue4.TArray ?: throw TesseractError4("dot requires array", node.line)
+                    val b = args[1] as? TValue4.TArray ?: throw TesseractError4("dot requires array", node.line)
                     var sum = 0.0
                     for (i in 0 until a.items.size) sum += a.items[i].toDouble() * b.items[i].toDouble()
                     TValue4.TNum(sum)
                 }
                 
                 "cross" -> {
-                    val a = args[0] as TValue4.TArray
-                    val b = args[1] as TValue4.TArray
+                    val a = args[0] as? TValue4.TArray ?: throw TesseractError4("cross requires array", node.line)
+                    val b = args[1] as? TValue4.TArray ?: throw TesseractError4("cross requires array", node.line)
                     val ax = a.items[0].toDouble()
                     val ay = a.items[1].toDouble()
                     val az = a.items[2].toDouble()
@@ -734,47 +734,46 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "norm" -> {
-                    val v = args[0] as TValue4.TArray
+                    val v = args[0] as? TValue4.TArray ?: throw TesseractError4("norm requires array", node.line)
                     var sum = 0.0
                     for (x in v.items) sum += x.toDouble() * x.toDouble()
                     TValue4.TNum(sqrt(sum))
                 }
                 
                 "mean", "avg" -> {
-                    val arr = (args[0] as TValue4.TArray).items
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("mean requires array", node.line)).items
                     if (arr.isEmpty()) throw TesseractError4("Empty array", node.line)
                     TValue4.TNum(arr.sumOf { it.toDouble() } / arr.size)
                 }
                 
                 "median" -> {
-                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }.sorted()
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("median requires array", node.line)).items.map { it.toDouble() }.sorted()
                     if (arr.isEmpty()) throw TesseractError4("Empty array", node.line)
                     val mid = arr.size / 2
                     TValue4.TNum(if (arr.size % 2 == 0) (arr[mid - 1] + arr[mid]) / 2.0 else arr[mid])
                 }
                 
                 "variance" -> {
-                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("variance requires array", node.line)).items.map { it.toDouble() }
                     val mean = arr.sum() / arr.size
                     TValue4.TNum(arr.sumOf { (it - mean) * (it - mean) } / arr.size)
                 }
                 
                 "std_dev" -> {
-                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("std_dev requires array", node.line)).items.map { it.toDouble() }
                     val mean = arr.sum() / arr.size
                     TValue4.TNum(sqrt(arr.sumOf { (it - mean) * (it - mean) } / arr.size))
                 }
                 
                 "sort" -> {
-                    val arr = (args[0] as TValue4.TArray).items
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("sort requires array", node.line)).items
                     TValue4.TArray(arr.sortedBy { it.toDouble() }.toMutableList())
                 }
                 
-                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов (функция и массив можно менять местами)
                 "sort_by" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("sort_by requires array", node.line)
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("sort_by requires function", node.line)
                     TValue4.TArray(arr.items.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList())
                 }
                 
@@ -800,7 +799,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "find_root" -> {
-                    val f = args[0] as TValue4.TFunction
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("find_root requires function", node.line)
                     var a = args[1].toDouble()
                     var b = args[2].toDouble()
                     val tol = if (args.size > 3) args[3].toDouble() else 1e-7
@@ -824,8 +823,8 @@ class Evaluator4(private val context: Context) {
                 }
 
                 "complex" -> TValue4.TComplex(args[0].toDouble(), args[1].toDouble())
-                "conj" -> { val z = args[0] as TValue4.TComplex; TValue4.TComplex(z.re, -z.im) }
-                "arg" -> { val z = args[0] as TValue4.TComplex; TValue4.TNum(atan2(z.im, z.re)) }
+                "conj" -> { val z = args[0] as? TValue4.TComplex ?: throw TesseractError4("conj requires complex", node.line); TValue4.TComplex(z.re, -z.im) }
+                "arg" -> { val z = args[0] as? TValue4.TComplex ?: throw TesseractError4("arg requires complex", node.line); TValue4.TNum(atan2(z.im, z.re)) }
                 
                 "abs" -> {
                     val arg = args[0]
@@ -899,8 +898,8 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "ap" -> {
-                    val fs = args[0] as TValue4.TArray
-                    val xs = args[1] as TValue4.TArray
+                    val fs = args[0] as? TValue4.TArray ?: throw TesseractError4("ap requires array", node.line)
+                    val xs = args[1] as? TValue4.TArray ?: throw TesseractError4("ap requires array", node.line)
                     val res = mutableListOf<TValue4>()
                     for (f in fs.items) {
                         for (x in xs.items) {
@@ -913,8 +912,8 @@ class Evaluator4(private val context: Context) {
                 "pure" -> TValue4.TArray(mutableListOf(args[0]))
                 
                 "bind" -> {
-                    val m = args[0] as TValue4.TArray
-                    val f = args[1] as TValue4.TFunction
+                    val m = args[0] as? TValue4.TArray ?: throw TesseractError4("bind requires array", node.line)
+                    val f = args[1] as? TValue4.TFunction ?: throw TesseractError4("bind requires function", node.line)
                     val res = mutableListOf<TValue4>()
                     for (x in m.items) {
                         val out = callTFunction(f, listOf(x), node.line)
@@ -923,11 +922,10 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(res)
                 }
                 
-                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов
                 "fmap" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val m = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val m = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("fmap requires array", node.line)
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("fmap requires function", node.line)
                     TValue4.TArray(m.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
                 }
 
@@ -1079,17 +1077,16 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
-                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов (функция и массив можно менять местами)
                 "map" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("map requires array", node.line)
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("map requires function", node.line)
                     TValue4.TArray(arr.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
                 }
                 "filter" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("filter requires array", node.line)
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("filter requires function", node.line)
                     TValue4.TArray(arr.items.filter { callTFunction(f, listOf(it), node.line).toBoolean() }.toMutableList())
                 }
                 "reduce" -> {
@@ -1097,12 +1094,12 @@ class Evaluator4(private val context: Context) {
                     val arr = when {
                         a0 is TValue4.TArray -> a0
                         a1 is TValue4.TArray -> a1
-                        else -> a2 as TValue4.TArray
+                        else -> a2 as? TValue4.TArray ?: throw TesseractError4("reduce requires array", node.line)
                     }
                     val f = when {
                         a0 is TValue4.TFunction -> a0
                         a1 is TValue4.TFunction -> a1
-                        else -> a2 as TValue4.TFunction
+                        else -> a2 as? TValue4.TFunction ?: throw TesseractError4("reduce requires function", node.line)
                     }
                     val acc = when {
                         a0 !is TValue4.TArray && a0 !is TValue4.TFunction -> a0
@@ -1115,8 +1112,8 @@ class Evaluator4(private val context: Context) {
                 }
                 "remove_at" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val idx = if (a0 is TValue4.TInt) a0 else a1 as TValue4.TInt
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("remove_at requires array", node.line)
+                    val idx = if (a0 is TValue4.TInt) a0 else a1 as? TValue4.TInt ?: throw TesseractError4("remove_at requires int", node.line)
                     val rawIndex = idx.value.toInt()
                     val actualIndex = if (rawIndex < 0) arr.items.size + rawIndex else rawIndex
                     val newArr = arr.items.toMutableList()
@@ -1124,13 +1121,13 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(newArr)
                 }
                 "apply" -> {
-                    val func = args[0] as TValue4.TFunction
-                    val argsArr = args[1] as TValue4.TArray
+                    val func = args[0] as? TValue4.TFunction ?: throw TesseractError4("apply requires function", node.line)
+                    val argsArr = args[1] as? TValue4.TArray ?: throw TesseractError4("apply requires array", node.line)
                     callTFunction(func, argsArr.items, node.line)
                 }
                 "compose" -> {
-                    val f = args[0] as TValue4.TFunction
-                    val g = args[1] as TValue4.TFunction
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("compose requires function", node.line)
+                    val g = args[1] as? TValue4.TFunction ?: throw TesseractError4("compose requires function", node.line)
                     val composeEnv = env.createChild()
                     composeEnv.set("__compose_f__", f)
                     composeEnv.set("__compose_g__", g)
@@ -1141,7 +1138,7 @@ class Evaluator4(private val context: Context) {
                     )
                 }
                 "memoize" -> {
-                    val func = args[0] as TValue4.TFunction
+                    val func = args[0] as? TValue4.TFunction ?: throw TesseractError4("memoize requires function", node.line)
                     val memoEnv = func.closureEnv.createChild()
                     memoEnv.set("__memo_cache__", TValue4.TArray(mutableListOf()))
                     val wrapper = TValue4.TArray(mutableListOf(func))
@@ -1149,7 +1146,7 @@ class Evaluator4(private val context: Context) {
                     wrapper
                 }
                 "flatten" -> {
-                    val arr = args[0] as TValue4.TArray
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("flatten requires array", node.line)
                     val result = mutableListOf<TValue4>()
                     fun flattenRec(item: TValue4) {
                         if (item is TValue4.TArray) {
@@ -1162,8 +1159,8 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(result)
                 }
                 "zip" -> {
-                    val a = args[0] as TValue4.TArray
-                    val b = args[1] as TValue4.TArray
+                    val a = args[0] as? TValue4.TArray ?: throw TesseractError4("zip requires array", node.line)
+                    val b = args[1] as? TValue4.TArray ?: throw TesseractError4("zip requires array", node.line)
                     val result = mutableListOf<TValue4>()
                     val minLen = minOf(a.items.size, b.items.size)
                     for (i in 0 until minLen) {
@@ -1192,11 +1189,10 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(result)
                 }
                 
-                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов
                 "all" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("all requires array", node.line)
+                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("all requires function", node.line)
                     var res = true
                     for (item in arr.items) {
                         if (!callTFunction(pred, listOf(item), node.line).toBoolean()) { res = false; break }
@@ -1205,8 +1201,8 @@ class Evaluator4(private val context: Context) {
                 }
                 "any" -> {
                     val a0 = args[0]; val a1 = args[1]
-                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
-                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as? TValue4.TArray ?: throw TesseractError4("any requires array", node.line)
+                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as? TValue4.TFunction ?: throw TesseractError4("any requires function", node.line)
                     var res = false
                     for (item in arr.items) {
                         if (callTFunction(pred, listOf(item), node.line).toBoolean()) { res = true; break }
@@ -1215,7 +1211,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "permutations" -> {
-                    val arr = (args[0] as TValue4.TArray).items
+                    val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("permutations requires array", node.line)).items
                     if (arr.size <= 1) {
                         TValue4.TArray(mutableListOf(TValue4.TArray(arr.toMutableList())))
                     } else {
@@ -1236,8 +1232,8 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "combinations" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val k = args[1] as TValue4.TInt
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("combinations requires array", node.line)
+                    val k = args[1] as? TValue4.TInt ?: throw TesseractError4("combinations requires int", node.line)
                     if (k.value.toInt() == 0) {
                         TValue4.TArray(mutableListOf(TValue4.TArray(mutableListOf())))
                     } else if (arr.items.isEmpty()) {
@@ -1296,7 +1292,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "product" -> {
-                    val arrays = (args[0] as TValue4.TArray).items
+                    val arrays = (args[0] as? TValue4.TArray ?: throw TesseractError4("product requires array", node.line)).items
                     if (arrays.isEmpty()) {
                         TValue4.TArray(mutableListOf())
                     } else {
@@ -1321,7 +1317,7 @@ class Evaluator4(private val context: Context) {
                 "poly" -> TValue4.TPoly(args.map { it.toDouble() })
                 
                 "eval_poly" -> {
-                    val p = args[0] as TValue4.TPoly
+                    val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("eval_poly requires poly", node.line)
                     val x = args[1].toDouble()
                     var res = 0.0
                     var xn = 1.0
