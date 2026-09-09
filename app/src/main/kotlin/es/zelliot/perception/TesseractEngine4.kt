@@ -187,7 +187,6 @@ sealed class Stmt4 : Node4() {
     data class IndexAssignment(val target: Expr4, val index: Expr4, val value: Expr4, override val line: Int) : Stmt4()
     data class DestructuringAssignment(val names: List<String>, val value: Expr4, override val line: Int, val isDeclaration: Boolean = false) : Stmt4()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt4>, override val line: Int) : Stmt4()
-    // 🔥 УЛУЧШЕНО: Добавлен необязательный параметр message для подробных ошибок
     data class AssertStmt(val condition: Expr4, val message: Expr4?, override val line: Int) : Stmt4()
     data class ReturnStmt(val value: Expr4?, override val line: Int) : Stmt4()
     data class WhileStmt(val cond: Expr4, val body: List<Stmt4>, override val line: Int) : Stmt4()
@@ -210,15 +209,23 @@ class Parser4(private val tokens: List<Token4>) {
         val current = peek()
         return when (current.type) {
             TokenType4.FN -> parseFunctionDef()
-            // 🔥 УЛУЧШЕНО: Парсинг assert с поддержкой опционального сообщения через запятую
+            // 🔥 УЛУЧШЕНО: Поддержка синтаксиса assert(...) со скобками И без них
             TokenType4.ASSERT -> { 
                 val currentToken = peek()
                 advance()
+                var hasParen = false
+                if (peek().type == TokenType4.LPAREN) {
+                    advance()
+                    hasParen = true
+                }
                 val cond = parseExpression()
                 var msg: Expr4? = null
                 if (peek().type == TokenType4.COMMA) {
                     advance()
                     msg = parseExpression()
+                }
+                if (hasParen) {
+                    expect(TokenType4.RPAREN)
                 }
                 Stmt4.AssertStmt(cond, msg, currentToken.line) 
             }
@@ -329,7 +336,6 @@ class Evaluator4(private val context: Context) {
 
     private fun evalStmt(node: Stmt4): TValue4? {
         return when (node) {
-            // 🔥 УЛУЧШЕНО: Вывод понятного сообщения об ошибке при провале assert
             is Stmt4.AssertStmt -> { 
                 val condVal = eval(node.condition)
                 if (!condVal.toBoolean()) {
