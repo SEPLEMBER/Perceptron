@@ -664,8 +664,20 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(arr.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList())
                 }
                 
-                "is_finite" -> TValue4.TBool(!args[0].toDouble().isInfinite() && !args[0].toDouble().isNaN())
-                "is_integer" -> TValue4.TBool(args[0] is TValue4.TInt || args[0] is TValue4.TBigInt || (args[0] is TValue4.TNum && args[0].value % 1.0 == 0.0))
+                "is_finite" -> {
+                    val d = args[0].toDouble()
+                    TValue4.TBool(!d.isInfinite() && !d.isNaN())
+                }
+                
+                "is_integer" -> {
+                    val arg = args[0]
+                    val isInt = when (arg) {
+                        is TValue4.TInt, is TValue4.TBigInt -> true
+                        is TValue4.TNum -> arg.value % 1.0 == 0.0
+                        else -> false
+                    }
+                    TValue4.TBool(isInt)
+                }
                 
                 "is_close" -> {
                     val diff = abs(args[0].toDouble() - args[1].toDouble())
@@ -700,7 +712,16 @@ class Evaluator4(private val context: Context) {
                 "complex" -> TValue4.TComplex(args[0].toDouble(), args[1].toDouble())
                 "conj" -> { val z = args[0] as TValue4.TComplex; TValue4.TComplex(z.re, -z.im) }
                 "arg" -> { val z = args[0] as TValue4.TComplex; TValue4.TNum(atan2(z.im, z.re)) }
-                "abs" -> if (args[0] is TValue4.TComplex) { val z = args[0] as TValue4.TComplex; TValue4.TNum(sqrt(z.re * z.re + z.im * z.im)) } else TValue4.TNum(abs(args[0].toDouble()))
+                
+                "abs" -> {
+                    val arg = args[0]
+                    if (arg is TValue4.TComplex) {
+                        TValue4.TNum(sqrt(arg.re * arg.re + arg.im * arg.im))
+                    } else {
+                        TValue4.TNum(abs(arg.toDouble()))
+                    }
+                }
+                
                 "hypot" -> TValue4.TNum(hypot(args[0].toDouble(), args[1].toDouble()))
                 "atan2" -> TValue4.TNum(atan2(args[0].toDouble(), args[1].toDouble()))
                 "degrees" -> TValue4.TNum(args[0].toDouble() * 180.0 / PI)
@@ -822,14 +843,15 @@ class Evaluator4(private val context: Context) {
                     } else throw TesseractError4("char_at requires string", node.line)
                 }
                 "len" -> {
-                    when (val arg = args[0]) {
+                    val arg = args[0]
+                    when (arg) {
                         is TValue4.TStr -> TValue4.TInt(arg.value.length.toLong())
                         is TValue4.TArray -> TValue4.TInt(arg.items.size.toLong() + arg.fields.size.toLong())
                         else -> throw TesseractError4("len() requires string or array", node.line)
                     }
                 }
                 "type_of" -> {
-                    val typeStr = when (args[0]) {
+                    val typeStr = when (val arg = args[0]) {
                         is TValue4.TNum -> "num"
                         is TValue4.TInt -> "int"
                         is TValue4.TStr -> "str"
@@ -919,11 +941,16 @@ class Evaluator4(private val context: Context) {
                 "round" -> TValue4.TInt(round(args[0].toDouble()).toLong())
                 "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]
                 "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
-                "rev" -> when (val arg = args[0]) {
-                    is TValue4.TInt -> TValue4.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L)
-                    is TValue4.TStr -> TValue4.TStr(arg.value.reversed())
-                    else -> throw TesseractError4("rev requires string or int", node.line)
+                
+                "rev" -> {
+                    val arg = args[0]
+                    when (arg) {
+                        is TValue4.TInt -> TValue4.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L)
+                        is TValue4.TStr -> TValue4.TStr(arg.value.reversed())
+                        else -> throw TesseractError4("rev requires string or int", node.line)
+                    }
                 }
+                
                 "setmetatable" -> {
                     if (args.size != 2) throw TesseractError4("setmetatable requires two arguments", node.line)
                     val table = args[0]
