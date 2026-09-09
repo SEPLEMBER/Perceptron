@@ -502,6 +502,7 @@ class Evaluator3(private val context: Context) {
         val result = mutableListOf<TValue3>()
         val first = arr[0]
         val rest = arr.drop(1)
+        
         for (sub in generateCombinations(rest, k - 1)) {
             if (sub is TValue3.TArray) {
                 val newComb = mutableListOf(first)
@@ -536,11 +537,7 @@ class Evaluator3(private val context: Context) {
                 val value = eval(node.value)
                 
                 if (target is TValue3.TArray) {
-                    if (indexVal is TValue3.TInt) {
-                        val rawIndex = indexVal.value.toInt()
-                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
-                        target.items[actualIndex] = value
-                    } else if (indexVal is TValue3.TStr) {
+                    if (indexVal is TValue3.TStr) {
                         val mt = target.metatable
                         if (mt is TValue3.TArray && mt.fields.containsKey("__newindex")) {
                             val newindexFn = mt.fields["__newindex"]
@@ -550,6 +547,18 @@ class Evaluator3(private val context: Context) {
                             }
                         }
                         target.fields[indexVal.value] = value
+                    } else {
+                        // 🔥 ИСПРАВЛЕНО: Поддержка TInt И TNum (если целое)
+                        val rawIndex = when (indexVal) {
+                            is TValue3.TInt -> indexVal.value.toInt()
+                            is TValue3.TNum -> {
+                                if (indexVal.value % 1.0 == 0.0) indexVal.value.toInt()
+                                else throw TesseractError3("Cannot assign to index with fractional number", node.line, callStack.toList())
+                            }
+                            else -> throw TesseractError3("Cannot assign to index of type: ${indexVal::class.simpleName}", node.line, callStack.toList())
+                        }
+                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                        target.items[actualIndex] = value
                     }
                     return null
                 }
@@ -602,17 +611,7 @@ class Evaluator3(private val context: Context) {
             is Expr3.NumLit -> TValue3.TNum(node.value)
             is Expr3.IntLit -> TValue3.TInt(node.value)
             is Expr3.StrLit -> TValue3.TStr(node.value)
-            // 🔥 ИСПРАВЛЕНО: Функции теперь являются значениями первого класса (First-Class Citizens)
-            // Если переменная не найдена в env, ищем её в userFunctions и возвращаем как TFunction
-            is Expr3.VarRef -> {
-                val found = env.get(node.name)
-                if (found != null) return found
-                val uFunc = userFunctions[node.name]
-                if (uFunc != null) {
-                    return TValue3.TFunction(uFunc.params, uFunc.body, env)
-                }
-                throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
-            }
+            is Expr3.VarRef -> env.get(node.name) ?: throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
             is Expr3.UnaryOp -> { 
                 if (node.op == TokenType3.MINUS) {
                     val v = eval(node.operand).toDouble()
@@ -640,11 +639,7 @@ class Evaluator3(private val context: Context) {
                 val indexVal = eval(node.index)
                 
                 if (target is TValue3.TArray) {
-                    if (indexVal is TValue3.TInt) {
-                        val rawIndex = indexVal.value.toInt()
-                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
-                        target.items[actualIndex]
-                    } else if (indexVal is TValue3.TStr) {
+                    if (indexVal is TValue3.TStr) {
                         if (target.fields.containsKey(indexVal.value)) {
                             target.fields[indexVal.value]!!
                         } else {
@@ -661,16 +656,29 @@ class Evaluator3(private val context: Context) {
                             }
                         }
                     } else {
-                        throw TesseractError3("Cannot index array with ${indexVal::class.simpleName}", node.line, callStack.toList())
+                        // 🔥 ИСПРАВЛЕНО: Поддержка TInt И TNum (если целое)
+                        val rawIndex = when (indexVal) {
+                            is TValue3.TInt -> indexVal.value.toInt()
+                            is TValue3.TNum -> {
+                                if (indexVal.value % 1.0 == 0.0) indexVal.value.toInt()
+                                else throw TesseractError3("Cannot index array with fractional number", node.line, callStack.toList())
+                            }
+                            else -> throw TesseractError3("Cannot index array with ${indexVal::class.simpleName}", node.line, callStack.toList())
+                        }
+                        val actualIndex = resolveIndex(target.items.size, rawIndex, node.line)
+                        target.items[actualIndex]
                     }
                 } else if (target is TValue3.TStr) {
-                    if (indexVal is TValue3.TInt) {
-                        val rawIndex = indexVal.value.toInt()
-                        val actualIndex = resolveIndex(target.value.length, rawIndex, node.line)
-                        TValue3.TStr(target.value[actualIndex].toString())
-                    } else {
-                        throw TesseractError3("Cannot index string with ${indexVal::class.simpleName}", node.line, callStack.toList())
+                    val rawIndex = when (indexVal) {
+                        is TValue3.TInt -> indexVal.value.toInt()
+                        is TValue3.TNum -> {
+                            if (indexVal.value % 1.0 == 0.0) indexVal.value.toInt()
+                            else throw TesseractError3("Cannot index string with fractional number", node.line, callStack.toList())
+                        }
+                        else -> throw TesseractError3("Cannot index string with ${indexVal::class.simpleName}", node.line, callStack.toList())
                     }
+                    val actualIndex = resolveIndex(target.value.length, rawIndex, node.line)
+                    TValue3.TStr(target.value[actualIndex].toString())
                 } else {
                     throw TesseractError3("Cannot index type: ${target::class.simpleName}", node.line, callStack.toList())
                 }
@@ -727,11 +735,13 @@ class Evaluator3(private val context: Context) {
                 TokenType3.EQ -> {
                     if (left is TValue3.TStr && right is TValue3.TStr) left.value == right.value
                     else if (left is TValue3.TBool && right is TValue3.TBool) left.value == right.value
+                    else if (left is TValue3.TInt && right is TValue3.TInt) left.value == right.value
                     else abs(left.toDouble() - right.toDouble()) < 1e-9
                 }
                 TokenType3.NEQ -> {
                     if (left is TValue3.TStr && right is TValue3.TStr) left.value != right.value
                     else if (left is TValue3.TBool && right is TValue3.TBool) left.value != right.value
+                    else if (left is TValue3.TInt && right is TValue3.TInt) left.value != right.value
                     else abs(left.toDouble() - right.toDouble()) >= 1e-9
                 }
                 TokenType3.GT -> if (left is TValue3.TStr && right is TValue3.TStr) left.value > right.value else left.toDouble() > right.toDouble()
@@ -756,6 +766,9 @@ class Evaluator3(private val context: Context) {
                     TValue3.TArray((left.items + right.items).toMutableList())
                 } else if (left is TValue3.TStr || right is TValue3.TStr) {
                     TValue3.TStr(left.displayString() + right.displayString())
+                } else if (left is TValue3.TInt && right is TValue3.TInt) {
+                    // 🔥 ИСПРАВЛЕНО: сохраняем TInt при сложении целых чисел
+                    TValue3.TInt(left.value + right.value)
                 } else {
                     TValue3.TNum(left.toDouble() + right.toDouble())
                 }
@@ -768,7 +781,9 @@ class Evaluator3(private val context: Context) {
                         if (subFn is TValue3.TFunction) return callTFunction(subFn, listOf(left, right), node.line)
                     }
                 }
-                TValue3.TNum(left.toDouble() - right.toDouble())
+                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при вычитании целых чисел
+                if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value - right.value)
+                else TValue3.TNum(left.toDouble() - right.toDouble())
             }
             TokenType3.MUL -> {
                 if (left is TValue3.TArray && right is TValue3.TArray) {
@@ -778,7 +793,9 @@ class Evaluator3(private val context: Context) {
                         if (mulFn is TValue3.TFunction) return callTFunction(mulFn, listOf(left, right), node.line)
                     }
                 }
-                TValue3.TNum(left.toDouble() * right.toDouble())
+                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при умножении целых чисел
+                if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value * right.value)
+                else TValue3.TNum(left.toDouble() * right.toDouble())
             }
             TokenType3.DIV -> {
                 if (left is TValue3.TArray && right is TValue3.TArray) {
@@ -792,7 +809,12 @@ class Evaluator3(private val context: Context) {
                 TValue3.TNum(left.toDouble() / right.toDouble())
             }
             TokenType3.INT_DIV -> { MathGuard3.checkDivision(right, node.line); TValue3.TInt(left.toLong() / right.toLong()) }
-            TokenType3.MOD -> { MathGuard3.checkDivision(right, node.line); TValue3.TNum(left.toDouble() % right.toDouble()) }
+            TokenType3.MOD -> { 
+                MathGuard3.checkDivision(right, node.line)
+                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при делении по модулю целых чисел
+                if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value % right.value)
+                else TValue3.TNum(left.toDouble() % right.toDouble()) 
+            }
             TokenType3.POW -> { val r = left.toDouble().pow(right.toDouble()); MathGuard3.checkOverflow(r, node.line); TValue3.TNum(r) }
             else -> throw TesseractError3("Unknown operator: ${node.op}", node.line)
         }
@@ -929,6 +951,7 @@ class Evaluator3(private val context: Context) {
                         TValue3.TArray(newArr)
                     } else throw TesseractError3("remove_at requires array and integer index", node.line)
                 }
+                
                 "apply" -> {
                     if (args.size != 2) throw TesseractError3("apply requires function and args array", node.line)
                     val func = args[0]
@@ -937,11 +960,23 @@ class Evaluator3(private val context: Context) {
                         callTFunction(func, argsArr.items, node.line)
                     } else throw TesseractError3("apply requires function and array of arguments", node.line)
                 }
+                
                 "compose" -> {
                     if (args.size != 2) throw TesseractError3("compose requires two functions", node.line)
                     val f = args[0]
                     val g = args[1]
                     if (f is TValue3.TFunction && g is TValue3.TFunction) {
+                        // Создаём новую функцию-обёртку как замыкание
+                        // Она принимает x, вычисляет g(x), затем f(g(x))
+                        val wrapperBody = listOf<Stmt3>(
+                            Stmt3.ReturnStmt(
+                                Expr3.FuncCall("", listOf(
+                                    Expr3.FuncCall("", listOf(Expr3.VarRef("x", node.line)), node.line)
+                                ), node.line),
+                                node.line
+                            )
+                        )
+                        // Вместо сложного AST, используем трюк: создаём массив [f, g] и специальную функцию
                         val composeFunc = TValue3.TFunction(listOf("x"), 
                             listOf(Stmt3.ReturnStmt(
                                 Expr3.FuncCall("__compose_f__", listOf(
@@ -949,16 +984,19 @@ class Evaluator3(private val context: Context) {
                                 ), node.line),
                             node.line)),
                             env)
+                        // Храним f и g в окружении под специальными именами
                         val composeEnv = env.createChild()
                         composeEnv.set("__compose_f__", f)
                         composeEnv.set("__compose_g__", g)
                         TValue3.TFunction(listOf("x"), composeFunc.body, composeEnv)
                     } else throw TesseractError3("compose requires two functions", node.line)
                 }
+                
                 "memoize" -> {
                     if (args.size != 1) throw TesseractError3("memoize requires one function", node.line)
                     val func = args[0]
                     if (func is TValue3.TFunction) {
+                        val cacheField = "cache"
                         val memoBody = func.body
                         val memoEnv = func.closureEnv.createChild()
                         memoEnv.set("__memo_cache__", TValue3.TArray(mutableListOf()))
@@ -968,6 +1006,7 @@ class Evaluator3(private val context: Context) {
                         wrapper
                     } else throw TesseractError3("memoize requires a function", node.line)
                 }
+                
                 "flatten" -> {
                     if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("flatten requires an array", node.line)
                     val arr = args[0] as TValue3.TArray
@@ -982,6 +1021,7 @@ class Evaluator3(private val context: Context) {
                     flattenRec(arr)
                     TValue3.TArray(result)
                 }
+                
                 "zip" -> {
                     if (args.size != 2) throw TesseractError3("zip requires two arrays", node.line)
                     val a = args[0]
@@ -995,12 +1035,15 @@ class Evaluator3(private val context: Context) {
                         TValue3.TArray(result)
                     } else throw TesseractError3("zip requires two arrays", node.line)
                 }
+                
                 "range" -> {
                     if (args.size < 1 || args.size > 3) throw TesseractError3("range takes 1-3 arguments: range(end) or range(start, end) or range(start, end, step)", node.line)
                     val start = if (args.size >= 2) args[0].toLong() else 0L
                     val end = if (args.size >= 2) args[1].toLong() else args[0].toLong()
                     val step = if (args.size == 3) args[2].toLong() else (if (start <= end) 1L else -1L)
+                    
                     if (step == 0L) throw TesseractError3("range step cannot be zero", node.line)
+                    
                     val result = mutableListOf<TValue3>()
                     var i = start
                     if (step > 0) {
@@ -1010,6 +1053,7 @@ class Evaluator3(private val context: Context) {
                     }
                     TValue3.TArray(result)
                 }
+                
                 "all" -> {
                     if (args.size != 2) throw TesseractError3("all requires array and predicate function", node.line)
                     val arr = args[0]
@@ -1025,6 +1069,7 @@ class Evaluator3(private val context: Context) {
                         TValue3.TBool(result)
                     } else throw TesseractError3("all requires array and predicate", node.line)
                 }
+                
                 "any" -> {
                     if (args.size != 2) throw TesseractError3("any requires array and predicate function", node.line)
                     val arr = args[0]
@@ -1040,11 +1085,13 @@ class Evaluator3(private val context: Context) {
                         TValue3.TBool(result)
                     } else throw TesseractError3("any requires array and predicate", node.line)
                 }
+                
                 "permutations" -> {
                     if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("permutations requires an array", node.line)
                     val arr = (args[0] as TValue3.TArray).items
                     TValue3.TArray(generatePermutations(arr).toMutableList())
                 }
+                
                 "combinations" -> {
                     if (args.size != 2) throw TesseractError3("combinations requires array and k", node.line)
                     val arr = args[0]
@@ -1055,12 +1102,15 @@ class Evaluator3(private val context: Context) {
                         TValue3.TArray(generateCombinations(arr.items, k).toMutableList())
                     } else throw TesseractError3("combinations requires array and integer k", node.line)
                 }
+                
                 "match" -> {
                     if (args.size != 2) throw TesseractError3("match requires pattern and value", node.line)
                     val pattern = args[0]
                     val value = args[1]
+                    
                     fun matchRec(p: TValue3, v: TValue3): Map<String, TValue3>? {
                         if (p is TValue3.TStr && p.value.startsWith("_")) return emptyMap()
+                        
                         if (p is TValue3.TNum && v is TValue3.TNum) {
                             return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
                         }
@@ -1073,6 +1123,7 @@ class Evaluator3(private val context: Context) {
                         if (p is TValue3.TBool && v is TValue3.TBool) {
                             return if (p.value == v.value) emptyMap() else null
                         }
+                        
                         if (p is TValue3.TArray && v is TValue3.TArray) {
                             if (p.items.size != v.items.size) return null
                             var bindings = mutableMapOf<String, TValue3>()
@@ -1085,11 +1136,14 @@ class Evaluator3(private val context: Context) {
                             }
                             return bindings
                         }
+                        
                         if (p is TValue3.TStr && p.value.startsWith("?")) {
                             return mapOf(p.value.substring(1) to v)
                         }
+                        
                         return null
                     }
+                    
                     val bindings = matchRec(pattern, value)
                     if (bindings != null) {
                         val result = TValue3.TArray(mutableListOf())
@@ -1104,10 +1158,12 @@ class Evaluator3(private val context: Context) {
                         result
                     }
                 }
+                
                 "product" -> {
                     if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("product requires array of arrays", node.line)
                     val arrays = (args[0] as TValue3.TArray).items
                     if (arrays.isEmpty()) return TValue3.TArray(mutableListOf())
+                    
                     fun cartesian(lists: List<List<TValue3>>): List<List<TValue3>> {
                         if (lists.isEmpty()) return listOf(emptyList())
                         val first = lists[0]
@@ -1120,6 +1176,7 @@ class Evaluator3(private val context: Context) {
                         }
                         return result
                     }
+                    
                     val listsOfItems = arrays.map { 
                         if (it is TValue3.TArray) it.items else listOf(it)
                     }
@@ -1128,6 +1185,7 @@ class Evaluator3(private val context: Context) {
                     }
                     TValue3.TArray(result.toMutableList())
                 }
+                
                 "exit" -> throw TesseractExitCommand3(if (args.isNotEmpty()) args[0].toLong() else 0L)
                 else -> throw TesseractError3("Unknown function: ${node.name}", node.line, callStack.toList())
             }
