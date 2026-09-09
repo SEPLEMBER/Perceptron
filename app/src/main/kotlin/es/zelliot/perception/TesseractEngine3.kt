@@ -548,7 +548,6 @@ class Evaluator3(private val context: Context) {
                         }
                         target.fields[indexVal.value] = value
                     } else {
-                        // 🔥 ИСПРАВЛЕНО: Поддержка TInt И TNum (если целое)
                         val rawIndex = when (indexVal) {
                             is TValue3.TInt -> indexVal.value.toInt()
                             is TValue3.TNum -> {
@@ -611,7 +610,21 @@ class Evaluator3(private val context: Context) {
             is Expr3.NumLit -> TValue3.TNum(node.value)
             is Expr3.IntLit -> TValue3.TInt(node.value)
             is Expr3.StrLit -> TValue3.TStr(node.value)
-            is Expr3.VarRef -> env.get(node.name) ?: throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
+            // 🔥🔥🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Функции как объекты первого класса 🔥🔥🔥
+            is Expr3.VarRef -> {
+                val envVal = env.get(node.name)
+                if (envVal != null) return envVal
+                
+                // Если переменная не найдена, проверяем, не является ли она user-функцией
+                val userFunc = userFunctions[node.name]
+                if (userFunc != null) {
+                    // Создаём TFunction на основе FunctionDef, используя ТЕКУЩЕЕ окружение как замыкание
+                    // Это позволяет передавать именованные функции как значения (Scheme/Lisp стиль)
+                    return TValue3.TFunction(userFunc.params, userFunc.body, env)
+                }
+                
+                throw TesseractError3("Undefined variable: ${node.name}", node.line, callStack.toList())
+            }
             is Expr3.UnaryOp -> { 
                 if (node.op == TokenType3.MINUS) {
                     val v = eval(node.operand).toDouble()
@@ -656,7 +669,6 @@ class Evaluator3(private val context: Context) {
                             }
                         }
                     } else {
-                        // 🔥 ИСПРАВЛЕНО: Поддержка TInt И TNum (если целое)
                         val rawIndex = when (indexVal) {
                             is TValue3.TInt -> indexVal.value.toInt()
                             is TValue3.TNum -> {
@@ -767,7 +779,6 @@ class Evaluator3(private val context: Context) {
                 } else if (left is TValue3.TStr || right is TValue3.TStr) {
                     TValue3.TStr(left.displayString() + right.displayString())
                 } else if (left is TValue3.TInt && right is TValue3.TInt) {
-                    // 🔥 ИСПРАВЛЕНО: сохраняем TInt при сложении целых чисел
                     TValue3.TInt(left.value + right.value)
                 } else {
                     TValue3.TNum(left.toDouble() + right.toDouble())
@@ -781,7 +792,6 @@ class Evaluator3(private val context: Context) {
                         if (subFn is TValue3.TFunction) return callTFunction(subFn, listOf(left, right), node.line)
                     }
                 }
-                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при вычитании целых чисел
                 if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value - right.value)
                 else TValue3.TNum(left.toDouble() - right.toDouble())
             }
@@ -793,7 +803,6 @@ class Evaluator3(private val context: Context) {
                         if (mulFn is TValue3.TFunction) return callTFunction(mulFn, listOf(left, right), node.line)
                     }
                 }
-                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при умножении целых чисел
                 if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value * right.value)
                 else TValue3.TNum(left.toDouble() * right.toDouble())
             }
@@ -811,7 +820,6 @@ class Evaluator3(private val context: Context) {
             TokenType3.INT_DIV -> { MathGuard3.checkDivision(right, node.line); TValue3.TInt(left.toLong() / right.toLong()) }
             TokenType3.MOD -> { 
                 MathGuard3.checkDivision(right, node.line)
-                // 🔥 ИСПРАВЛЕНО: сохраняем TInt при делении по модулю целых чисел
                 if (left is TValue3.TInt && right is TValue3.TInt) TValue3.TInt(left.value % right.value)
                 else TValue3.TNum(left.toDouble() % right.toDouble()) 
             }
@@ -966,8 +974,6 @@ class Evaluator3(private val context: Context) {
                     val f = args[0]
                     val g = args[1]
                     if (f is TValue3.TFunction && g is TValue3.TFunction) {
-                        // Создаём новую функцию-обёртку как замыкание
-                        // Она принимает x, вычисляет g(x), затем f(g(x))
                         val wrapperBody = listOf<Stmt3>(
                             Stmt3.ReturnStmt(
                                 Expr3.FuncCall("", listOf(
@@ -976,7 +982,6 @@ class Evaluator3(private val context: Context) {
                                 node.line
                             )
                         )
-                        // Вместо сложного AST, используем трюк: создаём массив [f, g] и специальную функцию
                         val composeFunc = TValue3.TFunction(listOf("x"), 
                             listOf(Stmt3.ReturnStmt(
                                 Expr3.FuncCall("__compose_f__", listOf(
@@ -984,7 +989,6 @@ class Evaluator3(private val context: Context) {
                                 ), node.line),
                             node.line)),
                             env)
-                        // Храним f и g в окружении под специальными именами
                         val composeEnv = env.createChild()
                         composeEnv.set("__compose_f__", f)
                         composeEnv.set("__compose_g__", g)
