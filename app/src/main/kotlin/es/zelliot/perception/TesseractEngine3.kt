@@ -378,7 +378,6 @@ class Parser3(private val tokens: List<Token3>) {
 // TESSERACT ENGINE 3: EVALUATOR
 // ============================================================================
 
-// 🔥 ИСПРАВЛЕНО: Environment3 теперь корректно обновляет переменные в замыканиях
 class Environment3(private val parent: Environment3? = null) {
     private val values = mutableMapOf<String, TValue3>()
     
@@ -387,7 +386,6 @@ class Environment3(private val parent: Environment3? = null) {
     fun has(name: String): Boolean = values.containsKey(name) || (parent?.has(name) ?: false)
     
     fun set(name: String, value: TValue3) {
-        // Если переменная уже существует в текущем или родительском скоупе, обновляем её там
         if (has(name)) {
             if (values.containsKey(name)) {
                 values[name] = value
@@ -395,7 +393,6 @@ class Environment3(private val parent: Environment3? = null) {
                 parent?.set(name, value)
             }
         } else {
-            // Иначе создаем новую в текущем скоупе
             values[name] = value
         }
     }
@@ -799,7 +796,6 @@ class Evaluator3(private val context: Context) {
                 "floor" -> TValue3.TInt(floor(args[0].toDouble()).toLong()); "ceil" -> TValue3.TInt(ceil(args[0].toDouble()).toLong()); "round" -> TValue3.TInt(round(args[0].toDouble()).toLong())
                 "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]; "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
                 "rev" -> when (val arg = args[0]) { is TValue3.TInt -> TValue3.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L); is TValue3.TStr -> TValue3.TStr(arg.value.reversed()); else -> throw TesseractError3("rev requires string or int", node.line) }
-                // 🔥 ИСПРАВЛЕНО: setmetatable теперь возвращает TNull, чтобы не засорять вывод
                 "setmetatable" -> {
                     if (args.size != 2) throw TesseractError3("setmetatable requires two arguments", node.line)
                     val table = args[0]
@@ -810,6 +806,45 @@ class Evaluator3(private val context: Context) {
                     } else {
                         throw TesseractError3("setmetatable first argument must be an array/table", node.line)
                     }
+                }
+                // 🚀 НОВЫЕ ФУНКЦИОНАЛЬНЫЕ МЕТОДЫ: map, filter, reduce
+                "map" -> {
+                    if (args.size != 2) throw TesseractError3("map requires array and function", node.line)
+                    val arr = args[0]
+                    val func = args[1]
+                    if (arr is TValue3.TArray && func is TValue3.TFunction) {
+                        val res = mutableListOf<TValue3>()
+                        for (item in arr.items) {
+                            res.add(callTFunction(func, listOf(item), node.line))
+                        }
+                        TValue3.TArray(res)
+                    } else throw TesseractError3("map requires array and function", node.line)
+                }
+                "filter" -> {
+                    if (args.size != 2) throw TesseractError3("filter requires array and function", node.line)
+                    val arr = args[0]
+                    val func = args[1]
+                    if (arr is TValue3.TArray && func is TValue3.TFunction) {
+                        val res = mutableListOf<TValue3>()
+                        for (item in arr.items) {
+                            if (callTFunction(func, listOf(item), node.line).toBoolean()) {
+                                res.add(item)
+                            }
+                        }
+                        TValue3.TArray(res)
+                    } else throw TesseractError3("filter requires array and function", node.line)
+                }
+                "reduce" -> {
+                    if (args.size != 3) throw TesseractError3("reduce requires array, function, and initial value", node.line)
+                    val arr = args[0]
+                    val func = args[1]
+                    var acc = args[2]
+                    if (arr is TValue3.TArray && func is TValue3.TFunction) {
+                        for (item in arr.items) {
+                            acc = callTFunction(func, listOf(acc, item), node.line)
+                        }
+                        acc
+                    } else throw TesseractError3("reduce requires array, function, and initial value", node.line)
                 }
                 "exit" -> throw TesseractExitCommand3(if (args.isNotEmpty()) args[0].toLong() else 0L)
                 else -> throw TesseractError3("Unknown function: ${node.name}", node.line, callStack.toList())
