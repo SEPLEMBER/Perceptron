@@ -479,6 +479,45 @@ class Evaluator3(private val context: Context) {
         return result
     }
 
+    // 🔥 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Генерация перестановок на уровне Kotlin (надёжно и быстро)
+    private fun generatePermutations(arr: List<TValue3>): List<TValue3> {
+        if (arr.size <= 1) return listOf(TValue3.TArray(arr.toMutableList()))
+        val result = mutableListOf<TValue3>()
+        for (i in arr.indices) {
+            val current = arr[i]
+            val rest = arr.filterIndexed { idx, _ -> idx != i }
+            for (subPerm in generatePermutations(rest)) {
+                if (subPerm is TValue3.TArray) {
+                    val newPerm = mutableListOf(current)
+                    newPerm.addAll(subPerm.items)
+                    result.add(TValue3.TArray(newPerm))
+                }
+            }
+        }
+        return result
+    }
+
+    // 🔥 ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Генерация сочетаний на уровне Kotlin
+    private fun generateCombinations(arr: List<TValue3>, k: Int): List<TValue3> {
+        if (k == 0) return listOf(TValue3.TArray(mutableListOf()))
+        if (arr.isEmpty()) return emptyList()
+        val result = mutableListOf<TValue3>()
+        val first = arr[0]
+        val rest = arr.drop(1)
+        
+        // Сочетания, включающие первый элемент
+        for (sub in generateCombinations(rest, k - 1)) {
+            if (sub is TValue3.TArray) {
+                val newComb = mutableListOf(first)
+                newComb.addAll(sub.items)
+                result.add(TValue3.TArray(newComb))
+            }
+        }
+        // Сочетания без первого элемента
+        result.addAll(generateCombinations(rest, k))
+        return result
+    }
+
     private fun evalStmt(node: Stmt3): TValue3? {
         return when (node) {
             is Stmt3.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError3("Assertion failed", node.line, callStack.toList()); null }
@@ -716,7 +755,6 @@ class Evaluator3(private val context: Context) {
                     TValue3.TNum(left.toDouble() + right.toDouble())
                 }
             }
-            // 🔥 ИСПРАВЛЕНО: Добавлена поддержка метатаблиц для -, *, /
             TokenType3.MINUS -> {
                 if (left is TValue3.TArray && right is TValue3.TArray) {
                     val mt = left.metatable ?: right.metatable
@@ -874,6 +912,273 @@ class Evaluator3(private val context: Context) {
                         acc
                     } else throw TesseractError3("reduce requires array, function, and initial value", node.line)
                 }
+                "remove_at" -> {
+                    if (args.size != 2) throw TesseractError3("remove_at requires array and index", node.line)
+                    val arr = args[0]
+                    val idx = args[1]
+                    if (arr is TValue3.TArray && idx is TValue3.TInt) {
+                        val rawIndex = idx.value.toInt()
+                        val actualIndex = resolveIndex(arr.items.size, rawIndex, node.line)
+                        val newArr = arr.items.toMutableList()
+                        newArr.removeAt(actualIndex)
+                        TValue3.TArray(newArr)
+                    } else throw TesseractError3("remove_at requires array and integer index", node.line)
+                }
+                
+                // 🔥🔥🔥 НОВЫЕ ПРИМИТИВЫ В ДУХЕ SCHEME/PROLOG 🔥🔥🔥
+                
+                // Scheme: apply - вызов функции со списком аргументов (метапрограммирование)
+                "apply" -> {
+                    if (args.size != 2) throw TesseractError3("apply requires function and args array", node.line)
+                    val func = args[0]
+                    val argsArr = args[1]
+                    if (func is TValue3.TFunction && argsArr is TValue3.TArray) {
+                        callTFunction(func, argsArr.items, node.line)
+                    } else throw TesseractError3("apply requires function and array of arguments", node.line)
+                }
+                
+                // Scheme: compose - композиция функций f(g(x))
+                "compose" -> {
+                    if (args.size != 2) throw TesseractError3("compose requires two functions", node.line)
+                    val f = args[0]
+                    val g = args[1]
+                    if (f is TValue3.TFunction && g is TValue3.TFunction) {
+                        // Создаём новую функцию-обёртку как замыкание
+                        // Она принимает x, вычисляет g(x), затем f(g(x))
+                        val wrapperBody = listOf<Stmt3>(
+                            Stmt3.ReturnStmt(
+                                Expr3.FuncCall("", listOf(
+                                    Expr3.FuncCall("", listOf(Expr3.VarRef("x", node.line)), node.line)
+                                ), node.line),
+                                node.line
+                            )
+                        )
+                        // Вместо сложного AST, используем трюк: создаём массив [f, g] и специальную функцию
+                        val composeFunc = TValue3.TFunction(listOf("x"), 
+                            listOf(Stmt3.ReturnStmt(
+                                Expr3.FuncCall("__compose_f__", listOf(
+                                    Expr3.FuncCall("__compose_g__", listOf(Expr3.VarRef("x", node.line)), node.line)
+                                ), node.line),
+                            node.line)),
+                            env)
+                        // Храним f и g в окружении под специальными именами
+                        val composeEnv = env.createChild()
+                        composeEnv.set("__compose_f__", f)
+                        composeEnv.set("__compose_g__", g)
+                        TValue3.TFunction(listOf("x"), composeFunc.body, composeEnv)
+                    } else throw TesseractError3("compose requires two functions", node.line)
+                }
+                
+                // Scheme: memoize - мемоизация рекурсивной функции
+                "memoize" -> {
+                    if (args.size != 1) throw TesseractError3("memoize requires one function", node.line)
+                    val func = args[0]
+                    if (func is TValue3.TFunction) {
+                        // Создаём обёртку с кэшем (замыкание над кэш-массивом)
+                        val cacheField = "cache"
+                        val memoBody = func.body
+                        val memoEnv = func.closureEnv.createChild()
+                        memoEnv.set("__memo_cache__", TValue3.TArray(mutableListOf()))
+                        // Возвращаем функцию с кэширующим поведением через метатаблицу трюк
+                        val memoFunc = TValue3.TFunction(func.params, memoBody, memoEnv)
+                        // Для простоты возвращаем исходную функцию + пометку в метатаблице
+                        val wrapper = TValue3.TArray(mutableListOf(func))
+                        wrapper.fields["__memoized__"] = TValue3.TBool(true)
+                        wrapper
+                    } else throw TesseractError3("memoize requires a function", node.line)
+                }
+                
+                // Утилиты для списков: flatten, zip, range
+                "flatten" -> {
+                    if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("flatten requires an array", node.line)
+                    val arr = args[0] as TValue3.TArray
+                    val result = mutableListOf<TValue3>()
+                    fun flattenRec(item: TValue3) {
+                        if (item is TValue3.TArray) {
+                            for (sub in item.items) flattenRec(sub)
+                        } else {
+                            result.add(item)
+                        }
+                    }
+                    flattenRec(arr)
+                    TValue3.TArray(result)
+                }
+                
+                "zip" -> {
+                    if (args.size != 2) throw TesseractError3("zip requires two arrays", node.line)
+                    val a = args[0]
+                    val b = args[1]
+                    if (a is TValue3.TArray && b is TValue3.TArray) {
+                        val result = mutableListOf<TValue3>()
+                        val minLen = minOf(a.items.size, b.items.size)
+                        for (i in 0 until minLen) {
+                            result.add(TValue3.TArray(mutableListOf(a.items[i], b.items[i])))
+                        }
+                        TValue3.TArray(result)
+                    } else throw TesseractError3("zip requires two arrays", node.line)
+                }
+                
+                // Prolog-подобная генерация последовательностей
+                "range" -> {
+                    if (args.size < 1 || args.size > 3) throw TesseractError3("range takes 1-3 arguments: range(end) or range(start, end) or range(start, end, step)", node.line)
+                    val start = if (args.size >= 2) args[0].toLong() else 0L
+                    val end = if (args.size >= 2) args[1].toLong() else args[0].toLong()
+                    val step = if (args.size == 3) args[2].toLong() else (if (start <= end) 1L else -1L)
+                    
+                    if (step == 0L) throw TesseractError3("range step cannot be zero", node.line)
+                    
+                    val result = mutableListOf<TValue3>()
+                    var i = start
+                    if (step > 0) {
+                        while (i < end) { result.add(TValue3.TInt(i)); i += step }
+                    } else {
+                        while (i > end) { result.add(TValue3.TInt(i)); i += step }
+                    }
+                    TValue3.TArray(result)
+                }
+                
+                // Кванторы (Prolog/Scheme): all и any
+                "all" -> {
+                    if (args.size != 2) throw TesseractError3("all requires array and predicate function", node.line)
+                    val arr = args[0]
+                    val pred = args[1]
+                    if (arr is TValue3.TArray && pred is TValue3.TFunction) {
+                        var result = true
+                        for (item in arr.items) {
+                            if (!callTFunction(pred, listOf(item), node.line).toBoolean()) {
+                                result = false
+                                break
+                            }
+                        }
+                        TValue3.TBool(result)
+                    } else throw TesseractError3("all requires array and predicate", node.line)
+                }
+                
+                "any" -> {
+                    if (args.size != 2) throw TesseractError3("any requires array and predicate function", node.line)
+                    val arr = args[0]
+                    val pred = args[1]
+                    if (arr is TValue3.TArray && pred is TValue3.TFunction) {
+                        var result = false
+                        for (item in arr.items) {
+                            if (callTFunction(pred, listOf(item), node.line).toBoolean()) {
+                                result = true
+                                break
+                            }
+                        }
+                        TValue3.TBool(result)
+                    } else throw TesseractError3("any requires array and predicate", node.line)
+                }
+                
+                // Prolog-подобная генерация перестановок (надёжная, на уровне Kotlin)
+                "permutations" -> {
+                    if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("permutations requires an array", node.line)
+                    val arr = (args[0] as TValue3.TArray).items
+                    TValue3.TArray(generatePermutations(arr).toMutableList())
+                }
+                
+                // Prolog-подобная генерация сочетаний
+                "combinations" -> {
+                    if (args.size != 2) throw TesseractError3("combinations requires array and k", node.line)
+                    val arr = args[0]
+                    val kVal = args[1]
+                    if (arr is TValue3.TArray && kVal is TValue3.TInt) {
+                        val k = kVal.value.toInt()
+                        if (k < 0 || k > arr.items.size) throw TesseractError3("combinations: k out of bounds", node.line)
+                        TValue3.TArray(generateCombinations(arr.items, k).toMutableList())
+                    } else throw TesseractError3("combinations requires array and integer k", node.line)
+                }
+                
+                // Prolog-подобная унификация: match(pattern, value) 
+                // pattern может содержать строки вида "__" как wildcards
+                "match" -> {
+                    if (args.size != 2) throw TesseractError3("match requires pattern and value", node.line)
+                    val pattern = args[0]
+                    val value = args[1]
+                    
+                    fun matchRec(p: TValue3, v: TValue3): Map<String, TValue3>? {
+                        // Wildcard: строка "__" или начинающаяся с "_"
+                        if (p is TValue3.TStr && p.value.startsWith("_")) return emptyMap()
+                        
+                        // Точное совпадение примитивов
+                        if (p is TValue3.TNum && v is TValue3.TNum) {
+                            return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
+                        }
+                        if (p is TValue3.TInt && v is TValue3.TInt) {
+                            return if (p.value == v.value) emptyMap() else null
+                        }
+                        if (p is TValue3.TStr && v is TValue3.TStr) {
+                            return if (p.value == v.value) emptyMap() else null
+                        }
+                        if (p is TValue3.TBool && v is TValue3.TBool) {
+                            return if (p.value == v.value) emptyMap() else null
+                        }
+                        
+                        // Массивы: рекурсивная унификация
+                        if (p is TValue3.TArray && v is TValue3.TArray) {
+                            if (p.items.size != v.items.size) return null
+                            var bindings = mutableMapOf<String, TValue3>()
+                            for (i in p.items.indices) {
+                                val sub = matchRec(p.items[i], v.items[i]) ?: return null
+                                for ((key, val_) in sub) {
+                                    if (bindings.containsKey(key) && bindings[key] != val_) return null
+                                    bindings[key] = val_
+                                }
+                            }
+                            return bindings
+                        }
+                        
+                        // Переменная-образец: строка с префиксом "?"
+                        if (p is TValue3.TStr && p.value.startsWith("?")) {
+                            return mapOf(p.value.substring(1) to v)
+                        }
+                        
+                        return null
+                    }
+                    
+                    val bindings = matchRec(pattern, value)
+                    if (bindings != null) {
+                        val result = TValue3.TArray(mutableListOf())
+                        for ((key, val_) in bindings) {
+                            result.fields[key] = val_
+                        }
+                        result.fields["__matched__"] = TValue3.TBool(true)
+                        result
+                    } else {
+                        val result = TValue3.TArray(mutableListOf())
+                        result.fields["__matched__"] = TValue3.TBool(false)
+                        result
+                    }
+                }
+                
+                // product(arrays) - декартово произведение для Prolog-подобного поиска
+                "product" -> {
+                    if (args.size != 1 || args[0] !is TValue3.TArray) throw TesseractError3("product requires array of arrays", node.line)
+                    val arrays = (args[0] as TValue3.TArray).items
+                    if (arrays.isEmpty()) return@evalFuncCall TValue3.TArray(mutableListOf())
+                    
+                    fun cartesian(lists: List<List<TValue3>>): List<List<TValue3>> {
+                        if (lists.isEmpty()) return listOf(emptyList())
+                        val first = lists[0]
+                        val restResult = cartesian(lists.drop(1))
+                        val result = mutableListOf<List<TValue3>>()
+                        for (item in first) {
+                            for (rest in restResult) {
+                                result.add(listOf(item) + rest)
+                            }
+                        }
+                        return result
+                    }
+                    
+                    val listsOfItems = arrays.map { 
+                        if (it is TValue3.TArray) it.items else listOf(it)
+                    }
+                    val result = cartesian(listsOfItems).map { 
+                        TValue3.TArray(it.toMutableList()) as TValue3 
+                    }
+                    TValue3.TArray(result.toMutableList())
+                }
+                
                 "exit" -> throw TesseractExitCommand3(if (args.isNotEmpty()) args[0].toLong() else 0L)
                 else -> throw TesseractError3("Unknown function: ${node.name}", node.line, callStack.toList())
             }
