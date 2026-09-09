@@ -9,7 +9,7 @@ import java.security.SecureRandom
 import java.util.Random
 
 // ============================================================================
-// TESSERACT ENGINE 4: EXCEPTIONS AND DATA TYPES (SUPERSET OF ENGINE 3)
+// TESSERACT ENGINE 4: EXCEPTIONS AND DATA TYPES
 // ============================================================================
 
 class TesseractError4(message: String, val line: Int, val callStack: List<String> = emptyList(), vararg val formatArgs: Any) : Exception(message)
@@ -666,7 +666,12 @@ class Evaluator4(private val context: Context) {
                 
                 "is_finite" -> TValue4.TBool(!args[0].toDouble().isInfinite() && !args[0].toDouble().isNaN())
                 "is_integer" -> TValue4.TBool(args[0] is TValue4.TInt || args[0] is TValue4.TBigInt || (args[0] is TValue4.TNum && args[0].value % 1.0 == 0.0))
-                "is_close" -> TValue4.TBool(abs(args[0].toDouble() - args[1].toDouble()) < (if (args.size > 2) args[2].toDouble() else 1e-9))
+                
+                "is_close" -> {
+                    val diff = abs(args[0].toDouble() - args[1].toDouble())
+                    val tol = if (args.size > 2) args[2].toDouble() else 1e-9
+                    TValue4.TBool(diff < tol)
+                }
                 
                 "find_root" -> {
                     val f = args[0] as TValue4.TFunction
@@ -702,17 +707,25 @@ class Evaluator4(private val context: Context) {
                 "radians" -> TValue4.TNum(args[0].toDouble() * PI / 180.0)
                 "sign" -> TValue4.TNum(sign(args[0].toDouble()))
                 "clamp" -> TValue4.TNum(args[0].toDouble().coerceIn(args[1].toDouble(), args[2].toDouble()))
-                "gcd" -> TValue4.TBigInt(BigInteger.valueOf(args[0].toLong()).gcd(BigInteger.valueOf(args[1].toLong())))
+                
+                "gcd" -> {
+                    val a = BigInteger.valueOf(args[0].toLong())
+                    val b = BigInteger.valueOf(args[1].toLong())
+                    TValue4.TBigInt(a.gcd(b))
+                }
+                
                 "lcm" -> {
                     val a = BigInteger.valueOf(args[0].toLong())
                     val b = BigInteger.valueOf(args[1].toLong())
                     TValue4.TBigInt(a.divide(a.gcd(b)).multiply(b))
                 }
+                
                 "factorial" -> {
                     var res = BigInteger.ONE
                     for (i in 1..args[0].toLong().toInt()) res = res.multiply(BigInteger.valueOf(i.toLong()))
                     TValue4.TBigInt(res)
                 }
+                
                 "comb" -> {
                     val n = args[0].toLong().toInt()
                     val k = args[1].toLong().toInt()
@@ -724,6 +737,7 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TBigInt(num.divide(den))
                 }
+                
                 "perm" -> {
                     val n = args[0].toLong().toInt()
                     val k = args[1].toLong().toInt()
@@ -740,6 +754,7 @@ class Evaluator4(private val context: Context) {
                         else -> TValue4.TNull
                     }
                 }
+                
                 "mappend" -> {
                     val l = args[0]
                     val r = args[1]
@@ -747,6 +762,7 @@ class Evaluator4(private val context: Context) {
                     else if (l is TValue4.TStr && r is TValue4.TStr) TValue4.TStr(l.value + r.value)
                     else TValue4.TNum(l.toDouble() + r.toDouble())
                 }
+                
                 "ap" -> {
                     val fs = args[0] as TValue4.TArray
                     val xs = args[1] as TValue4.TArray
@@ -758,7 +774,9 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TArray(res)
                 }
+                
                 "pure" -> TValue4.TArray(mutableListOf(args[0]))
+                
                 "bind" -> {
                     val m = args[0] as TValue4.TArray
                     val f = args[1] as TValue4.TFunction
@@ -769,6 +787,7 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TArray(res)
                 }
+                
                 "fmap" -> {
                     val f = args[0] as TValue4.TFunction
                     val m = args[1] as TValue4.TArray
@@ -1034,10 +1053,11 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TBool(res)
                 }
+                
                 "permutations" -> {
                     val arr = (args[0] as TValue4.TArray).items
                     if (arr.size <= 1) {
-                        TValue4.TArray(listOf(TValue4.TArray(arr.toMutableList())))
+                        TValue4.TArray(mutableListOf(TValue4.TArray(arr.toMutableList())))
                     } else {
                         val result = mutableListOf<TValue4>()
                         for (i in arr.indices) {
@@ -1054,11 +1074,12 @@ class Evaluator4(private val context: Context) {
                         TValue4.TArray(result)
                     }
                 }
+                
                 "combinations" -> {
                     val arr = args[0] as TValue4.TArray
                     val k = args[1] as TValue4.TInt
                     if (k.value.toInt() == 0) {
-                        TValue4.TArray(listOf(TValue4.TArray(mutableListOf())))
+                        TValue4.TArray(mutableListOf(TValue4.TArray(mutableListOf())))
                     } else if (arr.items.isEmpty()) {
                         TValue4.TArray(mutableListOf())
                     } else {
@@ -1076,6 +1097,7 @@ class Evaluator4(private val context: Context) {
                         TValue4.TArray(result)
                     }
                 }
+                
                 "match" -> {
                     val pattern = args[0]
                     val value = args[1]
@@ -1112,6 +1134,7 @@ class Evaluator4(private val context: Context) {
                         result
                     }
                 }
+                
                 "product" -> {
                     val arrays = (args[0] as TValue4.TArray).items
                     if (arrays.isEmpty()) {
@@ -1134,7 +1157,9 @@ class Evaluator4(private val context: Context) {
                         TValue4.TArray(result.toMutableList())
                     }
                 }
+                
                 "poly" -> TValue4.TPoly(args.map { it.toDouble() })
+                
                 "eval_poly" -> {
                     val p = args[0] as TValue4.TPoly
                     val x = args[1].toDouble()
@@ -1146,6 +1171,7 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TNum(res)
                 }
+                
                 "exit" -> throw TesseractExitCommand4(if (args.isNotEmpty()) args[0].toLong() else 0L)
                 else -> throw TesseractError4("Unknown function: ${node.name}", node.line, callStack.toList())
             }
