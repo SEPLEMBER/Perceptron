@@ -413,12 +413,15 @@ class Evaluator4(private val context: Context) {
                         }
                         left is TValue4.TArray || right is TValue4.TArray -> false
                         left is TValue4.TFunction && right is TValue4.TFunction -> false
-                        // 🔥 ИСПРАВЛЕНО: Математически корректное сравнение дробей
                         left is TValue4.TRational && right is TValue4.TRational -> left.num * right.den == right.num * left.den
                         left is TValue4.TRational && right is TValue4.TInt -> left.num == right.value.toBigInteger() * left.den
                         left is TValue4.TInt && right is TValue4.TRational -> right.num == left.value.toBigInteger() * right.den
                         left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) < 1e-9
                         left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) < 1e-9
+                        left is TValue4.TBigInt && right is TValue4.TInt -> left.value == right.value.toBigInteger()
+                        left is TValue4.TInt && right is TValue4.TBigInt -> left.value.toBigInteger() == right.value
+                        left is TValue4.TBigInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) < 1e-9
+                        left is TValue4.TNum && right is TValue4.TBigInt -> abs(left.value - right.value.toDouble()) < 1e-9
                         else -> left.displayString() == right.displayString()
                     }
                 }
@@ -452,6 +455,10 @@ class Evaluator4(private val context: Context) {
                         left is TValue4.TInt && right is TValue4.TRational -> right.num != left.value.toBigInteger() * right.den
                         left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) >= 1e-9
                         left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) >= 1e-9
+                        left is TValue4.TBigInt && right is TValue4.TInt -> left.value != right.value.toBigInteger()
+                        left is TValue4.TInt && right is TValue4.TBigInt -> left.value.toBigInteger() != right.value
+                        left is TValue4.TBigInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) >= 1e-9
+                        left is TValue4.TNum && right is TValue4.TBigInt -> abs(left.value - right.value.toDouble()) >= 1e-9
                         else -> left.displayString() != right.displayString()
                     }
                 }
@@ -468,7 +475,6 @@ class Evaluator4(private val context: Context) {
             val l = if (left is TValue4.TRational) left else TValue4.TRational(BigInteger.valueOf(left.toLong()), BigInteger.ONE)
             val r = if (right is TValue4.TRational) right else TValue4.TRational(BigInteger.valueOf(right.toLong()), BigInteger.ONE)
             
-            // 🔥 ИСПРАВЛЕНО: Автоматическое сокращение дробей после операций
             fun simplify(num: BigInteger, den: BigInteger): TValue4.TRational {
                 val g = num.gcd(den)
                 val n = num / g
@@ -895,7 +901,7 @@ class Evaluator4(private val context: Context) {
                     val res = mutableListOf<TValue4>()
                     for (f in fs.items) {
                         for (x in xs.items) {
-                            res.add(callTFunction(f as TValue4.TFunction, listOf(x), node.line))
+                            if (f is TValue4.TFunction) res.add(callTFunction(f, listOf(x), node.line))
                         }
                     }
                     TValue4.TArray(res)
