@@ -193,7 +193,6 @@ sealed class Expr3 : Node3() {
     data class ReturnExpr(val value: Expr3?, override val line: Int) : Expr3()
 }
 sealed class Stmt3 : Node3() {
-    // 🔥 ИСПРАВЛЕНО: Добавлен флаг isDeclaration для поддержки variable shadowing
     data class Assignment(val name: String, val value: Expr3, override val line: Int, val isDeclaration: Boolean = false) : Stmt3()
     data class IndexAssignment(val target: Expr3, val index: Expr3, val value: Expr3, override val line: Int) : Stmt3()
     data class DestructuringAssignment(val names: List<String>, val value: Expr3, override val line: Int, val isDeclaration: Boolean = false) : Stmt3()
@@ -246,13 +245,11 @@ class Parser3(private val tokens: List<Token3>) {
                     }
                     expect(TokenType3.RBRACKET)
                     expect(TokenType3.ASSIGN)
-                    // 🔥 ИСПРАВЛЕНО: Деструктуризация с var/val - это объявление
                     Stmt3.DestructuringAssignment(names, parseExpression(), current.line, isDeclaration = true)
                 } else {
                     val nameToken = expect(TokenType3.IDENTIFIER)
                     if (peek().type == TokenType3.COLON) { advance(); advance() }
                     expect(TokenType3.ASSIGN)
-                    // 🔥 ИСПРАВЛЕНО: var/val - это объявление
                     Stmt3.Assignment(nameToken.value, parseExpression(), nameToken.line, isDeclaration = true)
                 }
             }
@@ -400,7 +397,6 @@ class Environment3(private val parent: Environment3? = null) {
         }
     }
     
-    // 🔥 НОВЫЙ МЕТОД: Для явного объявления переменных (var/val) с поддержкой shadowing
     fun declare(name: String, value: TValue3) {
         values[name] = value
     }
@@ -442,7 +438,7 @@ class Evaluator3(private val context: Context) {
             for (stmt in statements) {
                 when (stmt) {
                     is Stmt3.SeparatorStmt -> results.add("---")
-                    is Stmt3.FunctionDef -> {}
+                    is Stmt3.FunctionDef -> {} // Top-level already registered in userFunctions
                     is Stmt3.Assignment -> { if (!constantOverrides.containsKey(stmt.name)) env.set(stmt.name, eval(stmt.value)) }
                     else -> { val res = evalStmt(stmt); if (res != null && res !is TValue3.TNull) results.add(res.displayString()) }
                 }
@@ -471,7 +467,6 @@ class Evaluator3(private val context: Context) {
         val localEnv = func.closureEnv.createChild()
         val oldEnv = env
         env = localEnv
-        // 🔥 ИСПРАВЛЕНО: Параметры функции объявляются локально
         for (i in func.params.indices) env.declare(func.params[i], args[i])
         
         val result = try { 
@@ -529,7 +524,6 @@ class Evaluator3(private val context: Context) {
             is Stmt3.ReturnStmt -> throw ReturnValue3(if (node.value != null) eval(node.value) else null)
             is Stmt3.Assignment -> { 
                 val evaluatedValue = eval(node.value)
-                // 🔥 ИСПРАВЛЕНО: Поддержка variable shadowing
                 if (node.isDeclaration) env.declare(node.name, evaluatedValue)
                 else env.set(node.name, evaluatedValue)
                 null 
@@ -539,7 +533,6 @@ class Evaluator3(private val context: Context) {
                 if (value is TValue3.TArray) {
                     for (i in node.names.indices) {
                         val valToAssign = if (i < value.items.size) value.items[i] else TValue3.TNull
-                        // 🔥 ИСПРАВЛЕНО: Поддержка variable shadowing
                         if (node.isDeclaration) env.declare(node.names[i], valToAssign)
                         else env.set(node.names[i], valToAssign)
                     }
@@ -598,7 +591,6 @@ class Evaluator3(private val context: Context) {
                 var i = startVal
                 while (if (step > 0) i <= endVal else i >= endVal) {
                     if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For loop timeout (3s)", node.line, callStack.toList())
-                    // 🔥 ИСПРАВЛЕНО: Переменная цикла объявляется локально
                     env.declare(node.varName, TValue3.TInt(i))
                     for (stmt in node.body) evalStmt(stmt)
                     i += step
@@ -612,7 +604,6 @@ class Evaluator3(private val context: Context) {
                 val items = when (collection) { is TValue3.TArray -> collection.items; is TValue3.TStr -> collection.value.map { TValue3.TStr(it.toString()) }; else -> throw TesseractError3("Cannot iterate over type: ${collection::class.simpleName}", node.line, callStack.toList()) }
                 for (item in items) {
                     if (System.currentTimeMillis() - startTime > 3000) throw TesseractError3("For-in loop timeout (3s)", node.line, callStack.toList())
-                    // 🔥 ИСПРАВЛЕНО: Переменная цикла объявляется локально
                     env.declare(node.varName, item)
                     for (stmt in node.body) evalStmt(stmt)
                     if (++iterations > 1_000_000) throw TesseractError3("For-in loop iteration limit (1M)", node.line, callStack.toList())
@@ -620,7 +611,12 @@ class Evaluator3(private val context: Context) {
                 null
             }
             is Stmt3.ExprStmt -> eval(node.expr)
-            is Stmt3.FunctionDef, is Stmt3.SeparatorStmt -> null
+            // 🔥🔥🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Локальные функции теперь регистрируются в текущем окружении! 🔥🔥🔥
+            is Stmt3.FunctionDef -> {
+                env.declare(node.name, TValue3.TFunction(node.params, node.body, env))
+                null
+            }
+            is Stmt3.SeparatorStmt -> null
         }
     }
 
@@ -860,7 +856,6 @@ class Evaluator3(private val context: Context) {
             if (++recursionDepth > 2000) throw TesseractError3("Recursion depth exceeded (2000)", node.line, callStack.toList())
             callStack.add("${node.name}()"); if (node.args.size != userFunc.params.size) throw TesseractError3("Argument mismatch for $node.name", node.line, callStack.toList())
             val localEnv = env.createChild(); val oldEnv = env; env = localEnv
-            // 🔥 ИСПРАВЛЕНО: Параметры функции объявляются локально
             for (i in userFunc.params.indices) env.declare(userFunc.params[i], eval(node.args[i]))
             val result = try { var res: TValue3? = null; for (stmt in userFunc.body) res = evalStmt(stmt); res ?: TValue3.TInt(0) } catch (e: ReturnValue3) { e.value ?: TValue3.TInt(0) } finally { env = oldEnv; callStack.removeLast(); recursionDepth-- }
             return result
