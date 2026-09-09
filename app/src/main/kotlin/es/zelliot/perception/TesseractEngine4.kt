@@ -1254,11 +1254,12 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
+                // 🔥 ИСПРАВЛЕНО: Паттерны теперь сохраняют ключи ровно так, как они написаны (например, "?")
                 "match" -> {
                     val pattern = args[0]
                     val value = args[1]
                     fun matchRec(p: TValue4, v: TValue4): Map<String, TValue4>? {
-                        if (p is TValue4.TStr && p.value.startsWith("?")) return mapOf(p.value.substring(1) to v)
+                        if (p is TValue4.TStr && p.value.startsWith("?")) return mapOf(p.value to v)
                         if (p is TValue4.TStr && p.value.startsWith("_")) return emptyMap()
                         if (p is TValue4.TNum && v is TValue4.TNum) return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
                         if (p is TValue4.TInt && v is TValue4.TInt) return if (p.value == v.value) emptyMap() else null
