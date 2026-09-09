@@ -187,7 +187,8 @@ sealed class Stmt4 : Node4() {
     data class IndexAssignment(val target: Expr4, val index: Expr4, val value: Expr4, override val line: Int) : Stmt4()
     data class DestructuringAssignment(val names: List<String>, val value: Expr4, override val line: Int, val isDeclaration: Boolean = false) : Stmt4()
     data class FunctionDef(val name: String, val params: List<String>, val body: List<Stmt4>, override val line: Int) : Stmt4()
-    data class AssertStmt(val condition: Expr4, override val line: Int) : Stmt4()
+    // 🔥 УЛУЧШЕНО: Добавлен необязательный параметр message для подробных ошибок
+    data class AssertStmt(val condition: Expr4, val message: Expr4?, override val line: Int) : Stmt4()
     data class ReturnStmt(val value: Expr4?, override val line: Int) : Stmt4()
     data class WhileStmt(val cond: Expr4, val body: List<Stmt4>, override val line: Int) : Stmt4()
     data class ForRangeStmt(val varName: String, val start: Expr4, val end: Expr4, val body: List<Stmt4>, override val line: Int) : Stmt4()
@@ -209,7 +210,18 @@ class Parser4(private val tokens: List<Token4>) {
         val current = peek()
         return when (current.type) {
             TokenType4.FN -> parseFunctionDef()
-            TokenType4.ASSERT -> { advance(); Stmt4.AssertStmt(parseExpression(), peek().line) }
+            // 🔥 УЛУЧШЕНО: Парсинг assert с поддержкой опционального сообщения через запятую
+            TokenType4.ASSERT -> { 
+                val currentToken = peek()
+                advance()
+                val cond = parseExpression()
+                var msg: Expr4? = null
+                if (peek().type == TokenType4.COMMA) {
+                    advance()
+                    msg = parseExpression()
+                }
+                Stmt4.AssertStmt(cond, msg, currentToken.line) 
+            }
             TokenType4.RETURN -> { advance(); val hasValue = peek().type != TokenType4.EOF && peek().type != TokenType4.RBRACE && peek().type != TokenType4.SEPARATOR; Stmt4.ReturnStmt(if (hasValue) parseExpression() else null, current.line) }
             TokenType4.WHILE -> parseWhile(); TokenType4.FOR -> parseFor()
             TokenType4.EXIT -> { advance(); val delay = if (peek().type == TokenType4.NUMBER) advance().value.toLong() else 0L; Stmt4.ExitStmt(delay, current.line) }
@@ -317,7 +329,19 @@ class Evaluator4(private val context: Context) {
 
     private fun evalStmt(node: Stmt4): TValue4? {
         return when (node) {
-            is Stmt4.AssertStmt -> { if (!eval(node.condition).toBoolean()) throw TesseractError4("Assertion failed", node.line, callStack.toList()); null }
+            // 🔥 УЛУЧШЕНО: Вывод понятного сообщения об ошибке при провале assert
+            is Stmt4.AssertStmt -> { 
+                val condVal = eval(node.condition)
+                if (!condVal.toBoolean()) {
+                    val msg = if (node.message != null) {
+                        try { eval(node.message).displayString() } catch (e: Exception) { "Error evaluating message" }
+                    } else {
+                        "Condition evaluated to false"
+                    }
+                    throw TesseractError4("Assertion failed: $msg", node.line, callStack.toList())
+                }
+                null 
+            }
             is Stmt4.ReturnStmt -> throw ReturnValue4(if (node.value != null) eval(node.value) else null)
             is Stmt4.Assignment -> { val evaluatedValue = eval(node.value); if (node.isDeclaration) env.declare(node.name, evaluatedValue) else env.set(node.name, evaluatedValue); null }
             is Stmt4.DestructuringAssignment -> { val value = eval(node.value); if (value is TValue4.TArray) { for (i in node.names.indices) { val valToAssign = if (i < value.items.size) value.items[i] else TValue4.TNull; if (node.isDeclaration) env.declare(node.names[i], valToAssign) else env.set(node.names[i], valToAssign) } } else throw TesseractError4("Can only destructure arrays", node.line); null }
