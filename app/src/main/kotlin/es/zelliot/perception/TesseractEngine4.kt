@@ -49,6 +49,7 @@ sealed class TValue4 {
         is TBool -> value; is TNum -> value != 0.0; is TInt -> value != 0L; is TBigInt -> value != BigInteger.ZERO
         is TStr -> value.isNotEmpty(); is TArray -> items.isNotEmpty() || fields.isNotEmpty(); is TNull -> false
         is TFunction -> true; is TComplex -> re != 0.0 || im != 0.0; is TMatrix -> data.any { it != 0.0 }
+        is TRational -> num != BigInteger.ZERO
         else -> false
     }
     fun displayString(): String = when (this) {
@@ -769,10 +770,12 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(arr.sortedBy { it.toDouble() }.toMutableList())
                 }
                 
+                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов (функция и массив можно менять местами)
                 "sort_by" -> {
-                    val arr = (args[0] as TValue4.TArray).items
-                    val f = args[1] as TValue4.TFunction
-                    TValue4.TArray(arr.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList())
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
+                    TValue4.TArray(arr.items.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList())
                 }
                 
                 "is_finite" -> {
@@ -920,9 +923,11 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(res)
                 }
                 
+                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов
                 "fmap" -> {
-                    val f = args[0] as TValue4.TFunction
-                    val m = args[1] as TValue4.TArray
+                    val a0 = args[0]; val a1 = args[1]
+                    val m = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
                     TValue4.TArray(m.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
                 }
 
@@ -1073,26 +1078,45 @@ class Evaluator4(private val context: Context) {
                         throw TesseractError4("setmetatable first argument must be an array/table", node.line)
                     }
                 }
+                
+                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов (функция и массив можно менять местами)
                 "map" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val f = args[1] as TValue4.TFunction
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
                     TValue4.TArray(arr.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
                 }
                 "filter" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val f = args[1] as TValue4.TFunction
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val f = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
                     TValue4.TArray(arr.items.filter { callTFunction(f, listOf(it), node.line).toBoolean() }.toMutableList())
                 }
                 "reduce" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val f = args[1] as TValue4.TFunction
-                    var acc = args[2]
-                    for (it in arr.items) acc = callTFunction(f, listOf(acc, it), node.line)
-                    acc
+                    val a0 = args[0]; val a1 = args[1]; val a2 = args[2]
+                    val arr = when {
+                        a0 is TValue4.TArray -> a0
+                        a1 is TValue4.TArray -> a1
+                        else -> a2 as TValue4.TArray
+                    }
+                    val f = when {
+                        a0 is TValue4.TFunction -> a0
+                        a1 is TValue4.TFunction -> a1
+                        else -> a2 as TValue4.TFunction
+                    }
+                    val acc = when {
+                        a0 !is TValue4.TArray && a0 !is TValue4.TFunction -> a0
+                        a1 !is TValue4.TArray && a1 !is TValue4.TFunction -> a1
+                        else -> a2
+                    }
+                    var currentAcc = acc
+                    for (it in arr.items) currentAcc = callTFunction(f, listOf(currentAcc, it), node.line)
+                    currentAcc
                 }
                 "remove_at" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val idx = args[1] as TValue4.TInt
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val idx = if (a0 is TValue4.TInt) a0 else a1 as TValue4.TInt
                     val rawIndex = idx.value.toInt()
                     val actualIndex = if (rawIndex < 0) arr.items.size + rawIndex else rawIndex
                     val newArr = arr.items.toMutableList()
@@ -1167,27 +1191,25 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TArray(result)
                 }
+                
+                // 🔥 ИСПРАВЛЕНО: Умное определение аргументов
                 "all" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val pred = args[1] as TValue4.TFunction
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
                     var res = true
                     for (item in arr.items) {
-                        if (!callTFunction(pred, listOf(item), node.line).toBoolean()) {
-                            res = false
-                            break
-                        }
+                        if (!callTFunction(pred, listOf(item), node.line).toBoolean()) { res = false; break }
                     }
                     TValue4.TBool(res)
                 }
                 "any" -> {
-                    val arr = args[0] as TValue4.TArray
-                    val pred = args[1] as TValue4.TFunction
+                    val a0 = args[0]; val a1 = args[1]
+                    val arr = if (a0 is TValue4.TArray) a0 else a1 as TValue4.TArray
+                    val pred = if (a0 is TValue4.TFunction) a0 else a1 as TValue4.TFunction
                     var res = false
                     for (item in arr.items) {
-                        if (callTFunction(pred, listOf(item), node.line).toBoolean()) {
-                            res = true
-                            break
-                        }
+                        if (callTFunction(pred, listOf(item), node.line).toBoolean()) { res = true; break }
                     }
                     TValue4.TBool(res)
                 }
