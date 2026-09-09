@@ -27,7 +27,7 @@ sealed class TValue4 {
         override fun hashCode(): Int = 31 * (31 * rows + cols) + data.contentHashCode()
     }
     data class TRational(val num: BigInteger, val den: BigInteger) : TValue4()
-    data class TPoly(val coeffs: List<Double>) : TValue4() // coeffs[i] is coefficient for x^i
+    data class TPoly(val coeffs: List<Double>) : TValue4()
     
     data class TArray(val items: MutableList<TValue4> = mutableListOf(), val fields: MutableMap<String, TValue4> = mutableMapOf(), var metatable: TValue4? = null) : TValue4()
     data class TFunction(val params: List<String>, val body: List<Stmt4>, val closureEnv: Environment4) : TValue4()
@@ -368,7 +368,6 @@ class Evaluator4(private val context: Context) {
             return TValue4.TBool(res)
         }
 
-        // Rational Math
         if (left is TValue4.TRational || right is TValue4.TRational) {
             val l = if (left is TValue4.TRational) left else TValue4.TRational(BigInteger.valueOf(left.toLong()), BigInteger.ONE)
             val r = if (right is TValue4.TRational) right else TValue4.TRational(BigInteger.valueOf(right.toLong()), BigInteger.ONE)
@@ -381,7 +380,6 @@ class Evaluator4(private val context: Context) {
             }
         }
 
-        // BigInt Math
         if (left is TValue4.TBigInt || right is TValue4.TBigInt) {
             val l = if (left is TValue4.TBigInt) left.value else BigInteger.valueOf(left.toLong())
             val r = if (right is TValue4.TBigInt) right.value else BigInteger.valueOf(right.toLong())
@@ -394,7 +392,6 @@ class Evaluator4(private val context: Context) {
             }
         }
 
-        // Complex Math
         if (left is TValue4.TComplex || right is TValue4.TComplex) {
             val l = if (left is TValue4.TComplex) left else TValue4.TComplex(left.toDouble(), 0.0)
             val r = if (right is TValue4.TComplex) right else TValue4.TComplex(right.toDouble(), 0.0)
@@ -408,7 +405,6 @@ class Evaluator4(private val context: Context) {
             }
         }
 
-        // Matrix Math
         if (left is TValue4.TMatrix && right is TValue4.TMatrix) {
             if (node.op == TokenType4.MUL) {
                 if (left.cols != right.rows) throw TesseractError4("Matrix dimension mismatch", node.line)
@@ -423,7 +419,6 @@ class Evaluator4(private val context: Context) {
             }
         }
 
-        // Standard Math (Engine 3 Compatibility)
         return when (node.op) {
             TokenType4.PLUS -> if (left is TValue4.TStr || right is TValue4.TStr) TValue4.TStr(left.displayString() + right.displayString()) else if (left is TValue4.TInt && right is TValue4.TInt) TValue4.TInt(left.value + right.value) else TValue4.TNum(left.toDouble() + right.toDouble())
             TokenType4.MINUS -> if (left is TValue4.TInt && right is TValue4.TInt) TValue4.TInt(left.value - right.value) else TValue4.TNum(left.toDouble() - right.toDouble())
@@ -466,64 +461,237 @@ class Evaluator4(private val context: Context) {
             val result = try { var res: TValue4? = null; for (stmt in userFunc.body) res = evalStmt(stmt); res ?: TValue4.TInt(0) } catch (e: ReturnValue4) { e.value ?: TValue4.TInt(0) } finally { env = oldEnv; callStack.removeLast(); recursionDepth-- }
             return result
         }
-        callStack.add("${node.name}()"); val args = node.args.map { eval(it) }
+        callStack.add("${node.name}()")
+        val args = node.args.map { eval(it) }
         val result = try {
             when (node.name) {
                 "print" -> { results.add(args.joinToString(" ") { it.displayString() }); TValue4.TNull }
                 
-                // --- ALIASES & MATH ---
                 "real", "re" -> TValue4.TNum((args[0] as TValue4.TComplex).re)
                 "imag", "im" -> TValue4.TNum((args[0] as TValue4.TComplex).im)
+                
                 "inverse", "inv" -> {
-                    val m = args[0] as TValue4.TMatrix; if (m.rows != m.cols) throw TesseractError4("Inv requires square matrix", node.line)
-                    val n = m.rows; val aug = Array(n) { i -> DoubleArray(2 * n) { j -> if (j < n) m.data[i * n + j] else if (j - n == i) 1.0 else 0.0 } }
-                    for (i in 0 until n) { var maxEl = abs(aug[i][i]); var maxRow = i; for (k in i + 1 until n) if (abs(aug[k][i]) > maxEl) { maxEl = abs(aug[k][i]); maxRow = k }; val temp = aug[maxRow]; aug[maxRow] = aug[i]; aug[i] = temp; if (abs(aug[i][i]) < 1e-12) throw TesseractError4("Matrix is singular", node.line); val div = aug[i][i]; for (j in 0 until 2 * n) aug[i][j] /= div; for (k in 0 until n) { if (k != i) { val c = aug[k][i]; for (j in 0 until 2 * n) aug[k][j] -= c * aug[i][j] } } }
-                    val res = DoubleArray(n * n); for (i in 0 until n) for (j in 0 until n) res[i * n + j] = aug[i][n + j]; TValue4.TMatrix(n, n, res)
+                    val m = args[0] as TValue4.TMatrix
+                    if (m.rows != m.cols) throw TesseractError4("Inv requires square matrix", node.line)
+                    val n = m.rows
+                    val aug = Array(n) { i -> DoubleArray(2 * n) { j -> if (j < n) m.data[i * n + j] else if (j - n == i) 1.0 else 0.0 } }
+                    for (i in 0 until n) {
+                        var maxEl = abs(aug[i][i]); var maxRow = i
+                        for (k in i + 1 until n) if (abs(aug[k][i]) > maxEl) { maxEl = abs(aug[k][i]); maxRow = k }
+                        val temp = aug[maxRow]; aug[maxRow] = aug[i]; aug[i] = temp
+                        if (abs(aug[i][i]) < 1e-12) throw TesseractError4("Matrix is singular", node.line)
+                        val div = aug[i][i]
+                        for (j in 0 until 2 * n) aug[i][j] /= div
+                        for (k in 0 until n) {
+                            if (k != i) {
+                                val c = aug[k][i]
+                                for (j in 0 until 2 * n) aug[k][j] -= c * aug[i][j]
+                            }
+                        }
+                    }
+                    val res = DoubleArray(n * n)
+                    for (i in 0 until n) for (j in 0 until n) res[i * n + j] = aug[i][n + j]
+                    TValue4.TMatrix(n, n, res)
                 }
-                "derivative", "diff" -> { val p = args[0] as TValue4.TPoly; if (p.coeffs.size <= 1) TValue4.TPoly(listOf(0.0)) else TValue4.TPoly(p.coeffs.drop(1).mapIndexed { i, c -> c * (i + 1) }) }
-                "antiderivative", "integrate" -> { val p = args[0] as TValue4.TPoly; TValue4.TPoly(listOf(0.0) + p.coeffs.mapIndexed { i, c -> c / (i + 1) }) }
-                "expand" -> { val p = args[0] as TValue4.TPoly; p } 
+                
+                "derivative", "diff" -> {
+                    val p = args[0] as TValue4.TPoly
+                    if (p.coeffs.size <= 1) TValue4.TPoly(listOf(0.0)) else TValue4.TPoly(p.coeffs.drop(1).mapIndexed { i, c -> c * (i + 1) })
+                }
+                
+                "antiderivative", "integrate" -> {
+                    val p = args[0] as TValue4.TPoly
+                    TValue4.TPoly(listOf(0.0) + p.coeffs.mapIndexed { i, c -> c / (i + 1) })
+                }
+                
+                "expand" -> { val p = args[0] as TValue4.TPoly; p }
                 "simplify" -> { val p = args[0] as TValue4.TPoly; TValue4.TPoly(p.coeffs.filter { it != 0.0 }.ifEmpty { listOf(0.0) }) }
-                "rational" -> { val num = BigInteger.valueOf(args[0].toLong()); val den = BigInteger.valueOf(args[1].toLong()); val g = num.gcd(den); TValue4.TRational(num/g, den/g) }
                 
-                // --- MATRIX & LIN ALG ---
-                "matrix" -> { val arr = args[0] as TValue4.TArray; val rows = arr.items.size; val cols = (arr.items[0] as TValue4.TArray).items.size; val data = DoubleArray(rows * cols); for (i in 0 until rows) for (j in 0 until cols) data[i * cols + j] = (arr.items[i] as TValue4.TArray).items[j].toDouble(); TValue4.TMatrix(rows, cols, data) }
+                "rational" -> {
+                    val num = BigInteger.valueOf(args[0].toLong())
+                    val den = BigInteger.valueOf(args[1].toLong())
+                    val g = num.gcd(den)
+                    TValue4.TRational(num / g, den / g)
+                }
+                
+                "matrix" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val rows = arr.items.size
+                    val cols = (arr.items[0] as TValue4.TArray).items.size
+                    val data = DoubleArray(rows * cols)
+                    for (i in 0 until rows) {
+                        for (j in 0 until cols) {
+                            data[i * cols + j] = (arr.items[i] as TValue4.TArray).items[j].toDouble()
+                        }
+                    }
+                    TValue4.TMatrix(rows, cols, data)
+                }
+                
                 "zeros" -> TValue4.TMatrix(args[0].toLong().toInt(), args[1].toLong().toInt(), DoubleArray(args[0].toLong().toInt() * args[1].toLong().toInt()))
-                "ones" -> { val r = args[0].toLong().toInt(); val c = args[1].toLong().toInt(); val d = DoubleArray(r * c) { 1.0 }; TValue4.TMatrix(r, c, d) }
-                "identity" -> { val n = args[0].toLong().toInt(); val d = DoubleArray(n * n); for (i in 0 until n) d[i * n + i] = 1.0; TValue4.TMatrix(n, n, d) }
-                "transpose" -> { val m = args[0] as TValue4.TMatrix; val d = DoubleArray(m.rows * m.cols); for (i in 0 until m.rows) for (j in 0 until m.cols) d[j * m.rows + i] = m.data[i * m.cols + j]; TValue4.TMatrix(m.cols, m.rows, d) }
-                "det" -> { val m = args[0] as TValue4.TMatrix; if (m.rows != m.cols) throw TesseractError4("Det requires square matrix", node.line); val n = m.rows; val a = Array(n) { i -> DoubleArray(n) { j -> m.data[i * n + j] } }; var det = 1.0; for (i in 0 until n) { var maxEl = abs(a[i][i]); var maxRow = i; for (k in i + 1 until n) if (abs(a[k][i]) > maxEl) { maxEl = abs(a[k][i]); maxRow = k }; if (maxRow != i) { val temp = a[i]; a[i] = a[maxRow]; a[maxRow] = temp; det *= -1.0 }; if (abs(a[i][i]) < 1e-12) return@try TValue4.TNum(0.0); det *= a[i][i]; for (k in i + 1 until n) { val c = -a[k][i] / a[i][i]; for (j in i + 1 until n) a[k][j] += c * a[i][j] } }; TValue4.TNum(det) }
-                "solve" -> { val m = args[0] as TValue4.TMatrix; val bArr = args[1] as TValue4.TArray; val a = Array(m.rows) { i -> DoubleArray(m.cols) { j -> m.data[i * m.cols + j] } }; val b = DoubleArray(bArr.items.size) { bArr.items[it].toDouble() }; val x = solveGauss(a, b); TValue4.TArray(x.map { TValue4.TNum(it) }.toMutableList()) }
-                "dot" -> { val a = args[0] as TValue4.TArray; val b = args[1] as TValue4.TArray; var sum = 0.0; for (i in 0 until a.items.size) sum += a.items[i].toDouble() * b.items[i].toDouble(); TValue4.TNum(sum) }
-                "cross" -> { val a = args[0] as TValue4.TArray; val b = args[1] as TValue4.TArray; val ax = a.items[0].toDouble(); val ay = a.items[1].toDouble(); val az = a.items[2].toDouble(); val bx = b.items[0].toDouble(); val by = b.items[1].toDouble(); val bz = b.items[2].toDouble(); TValue4.TArray(mutableListOf(TValue4.TNum(ay * bz - az * by), TValue4.TNum(az * bx - ax * bz), TValue4.TNum(ax * by - ay * bx))) }
-                "norm" -> { val v = args[0] as TValue4.TArray; var sum = 0.0; for (x in v.items) sum += x.toDouble() * x.toDouble(); TValue4.TNum(sqrt(sum)) }
                 
-                // --- STATISTICS & SORTING ---
-                "mean", "avg" -> { val arr = (args[0] as TValue4.TArray).items; if(arr.isEmpty()) throw TesseractError4("Empty array", node.line); TValue4.TNum(arr.sumOf { it.toDouble() } / arr.size) }
-                "median" -> { val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }.sorted(); if(arr.isEmpty()) throw TesseractError4("Empty array", node.line); val mid = arr.size / 2; TValue4.TNum(if (arr.size % 2 == 0) (arr[mid - 1] + arr[mid]) / 2.0 else arr[mid]) }
-                "variance" -> { val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }; val mean = arr.sum() / arr.size; TValue4.TNum(arr.sumOf { (it - mean) * (it - mean) } / arr.size) }
-                "std_dev" -> { val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }; val mean = arr.sum() / arr.size; TValue4.TNum(sqrt(arr.sumOf { (it - mean) * (it - mean) } / arr.size)) }
-                "sort" -> { val arr = (args[0] as TValue4.TArray).items; TValue4.TArray(arr.sortedBy { it.toDouble() }.toMutableList()) }
-                "sort_by" -> { val arr = (args[0] as TValue4.TArray).items; val f = args[1] as TValue4.TFunction; TValue4.TArray(arr.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList()) }
+                "ones" -> {
+                    val r = args[0].toLong().toInt()
+                    val c = args[1].toLong().toInt()
+                    val d = DoubleArray(r * c) { 1.0 }
+                    TValue4.TMatrix(r, c, d)
+                }
                 
-                // --- PREDICATES & CHECKS ---
+                "identity" -> {
+                    val n = args[0].toLong().toInt()
+                    val d = DoubleArray(n * n)
+                    for (i in 0 until n) d[i * n + i] = 1.0
+                    TValue4.TMatrix(n, n, d)
+                }
+                
+                "transpose" -> {
+                    val m = args[0] as TValue4.TMatrix
+                    val d = DoubleArray(m.rows * m.cols)
+                    for (i in 0 until m.rows) {
+                        for (j in 0 until m.cols) {
+                            d[j * m.rows + i] = m.data[i * m.cols + j]
+                        }
+                    }
+                    TValue4.TMatrix(m.cols, m.rows, d)
+                }
+                
+                "det" -> {
+                    val m = args[0] as TValue4.TMatrix
+                    if (m.rows != m.cols) throw TesseractError4("Det requires square matrix", node.line)
+                    val n = m.rows
+                    val a = Array(n) { i -> DoubleArray(n) { j -> m.data[i * n + j] } }
+                    var det = 1.0
+                    for (i in 0 until n) {
+                        var maxEl = abs(a[i][i])
+                        var maxRow = i
+                        for (k in i + 1 until n) {
+                            if (abs(a[k][i]) > maxEl) {
+                                maxEl = abs(a[k][i])
+                                maxRow = k
+                            }
+                        }
+                        if (maxRow != i) {
+                            val temp = a[i]
+                            a[i] = a[maxRow]
+                            a[maxRow] = temp
+                            det *= -1.0
+                        }
+                        if (abs(a[i][i]) < 1e-12) {
+                            det = 0.0
+                            break
+                        }
+                        det *= a[i][i]
+                        for (k in i + 1 until n) {
+                            val c = -a[k][i] / a[i][i]
+                            for (j in i + 1 until n) a[k][j] += c * a[i][j]
+                        }
+                    }
+                    TValue4.TNum(det)
+                }
+                
+                "solve" -> {
+                    val m = args[0] as TValue4.TMatrix
+                    val bArr = args[1] as TValue4.TArray
+                    val a = Array(m.rows) { i -> DoubleArray(m.cols) { j -> m.data[i * m.cols + j] } }
+                    val b = DoubleArray(bArr.items.size) { bArr.items[it].toDouble() }
+                    val x = solveGauss(a, b)
+                    TValue4.TArray(x.map { TValue4.TNum(it) }.toMutableList())
+                }
+                
+                "dot" -> {
+                    val a = args[0] as TValue4.TArray
+                    val b = args[1] as TValue4.TArray
+                    var sum = 0.0
+                    for (i in 0 until a.items.size) sum += a.items[i].toDouble() * b.items[i].toDouble()
+                    TValue4.TNum(sum)
+                }
+                
+                "cross" -> {
+                    val a = args[0] as TValue4.TArray
+                    val b = args[1] as TValue4.TArray
+                    val ax = a.items[0].toDouble()
+                    val ay = a.items[1].toDouble()
+                    val az = a.items[2].toDouble()
+                    val bx = b.items[0].toDouble()
+                    val by = b.items[1].toDouble()
+                    val bz = b.items[2].toDouble()
+                    TValue4.TArray(mutableListOf(
+                        TValue4.TNum(ay * bz - az * by),
+                        TValue4.TNum(az * bx - ax * bz),
+                        TValue4.TNum(ax * by - ay * bx)
+                    ))
+                }
+                
+                "norm" -> {
+                    val v = args[0] as TValue4.TArray
+                    var sum = 0.0
+                    for (x in v.items) sum += x.toDouble() * x.toDouble()
+                    TValue4.TNum(sqrt(sum))
+                }
+                
+                "mean", "avg" -> {
+                    val arr = (args[0] as TValue4.TArray).items
+                    if (arr.isEmpty()) throw TesseractError4("Empty array", node.line)
+                    TValue4.TNum(arr.sumOf { it.toDouble() } / arr.size)
+                }
+                
+                "median" -> {
+                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }.sorted()
+                    if (arr.isEmpty()) throw TesseractError4("Empty array", node.line)
+                    val mid = arr.size / 2
+                    TValue4.TNum(if (arr.size % 2 == 0) (arr[mid - 1] + arr[mid]) / 2.0 else arr[mid])
+                }
+                
+                "variance" -> {
+                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }
+                    val mean = arr.sum() / arr.size
+                    TValue4.TNum(arr.sumOf { (it - mean) * (it - mean) } / arr.size)
+                }
+                
+                "std_dev" -> {
+                    val arr = (args[0] as TValue4.TArray).items.map { it.toDouble() }
+                    val mean = arr.sum() / arr.size
+                    TValue4.TNum(sqrt(arr.sumOf { (it - mean) * (it - mean) } / arr.size))
+                }
+                
+                "sort" -> {
+                    val arr = (args[0] as TValue4.TArray).items
+                    TValue4.TArray(arr.sortedBy { it.toDouble() }.toMutableList())
+                }
+                
+                "sort_by" -> {
+                    val arr = (args[0] as TValue4.TArray).items
+                    val f = args[1] as TValue4.TFunction
+                    TValue4.TArray(arr.sortedBy { callTFunction(f, listOf(it), node.line).toDouble() }.toMutableList())
+                }
+                
                 "is_finite" -> TValue4.TBool(!args[0].toDouble().isInfinite() && !args[0].toDouble().isNaN())
                 "is_integer" -> TValue4.TBool(args[0] is TValue4.TInt || args[0] is TValue4.TBigInt || (args[0] is TValue4.TNum && args[0].value % 1.0 == 0.0))
-                "is_close" -> TValue4.TBool(abs(args[0].toDouble() - args[1].toDouble()) < (if(args.size > 2) args[2].toDouble() else 1e-9))
+                "is_close" -> TValue4.TBool(abs(args[0].toDouble() - args[1].toDouble()) < (if (args.size > 2) args[2].toDouble() else 1e-9))
                 
-                // --- OPTIMIZATION (Root Finding Bisection) ---
-                "find_root" -> { 
-                    val f = args[0] as TValue4.TFunction; var a = args[1].toDouble(); var b = args[2].toDouble(); val tol = if(args.size > 3) args[3].toDouble() else 1e-7
+                "find_root" -> {
+                    val f = args[0] as TValue4.TFunction
+                    var a = args[1].toDouble()
+                    var b = args[2].toDouble()
+                    val tol = if (args.size > 3) args[3].toDouble() else 1e-7
                     var fa = callTFunction(f, listOf(TValue4.TNum(a)), node.line).toDouble()
+                    var resMid = (a + b) / 2.0
                     for (i in 0 until 100) {
-                        val mid = (a + b) / 2.0; val fmid = callTFunction(f, listOf(TValue4.TNum(mid)), node.line).toDouble()
-                        if (abs(fmid) < tol || (b - a) / 2 < tol) return@try TValue4.TNum(mid)
-                        if (fa * fmid < 0.0) { b = mid } else { a = mid; fa = fmid }
+                        val mid = (a + b) / 2.0
+                        val fmid = callTFunction(f, listOf(TValue4.TNum(mid)), node.line).toDouble()
+                        if (abs(fmid) < tol || (b - a) / 2 < tol) {
+                            resMid = mid
+                            break
+                        }
+                        if (fa * fmid < 0.0) {
+                            b = mid
+                        } else {
+                            a = mid
+                            fa = fmid
+                        }
                     }
-                    TValue4.TNum((a+b)/2.0) 
+                    TValue4.TNum(resMid)
                 }
 
-                // --- COMPLEX, TRIG, COMBINATORICS ---
                 "complex" -> TValue4.TComplex(args[0].toDouble(), args[1].toDouble())
                 "conj" -> { val z = args[0] as TValue4.TComplex; TValue4.TComplex(z.re, -z.im) }
                 "arg" -> { val z = args[0] as TValue4.TComplex; TValue4.TNum(atan2(z.im, z.re)) }
@@ -535,42 +703,181 @@ class Evaluator4(private val context: Context) {
                 "sign" -> TValue4.TNum(sign(args[0].toDouble()))
                 "clamp" -> TValue4.TNum(args[0].toDouble().coerceIn(args[1].toDouble(), args[2].toDouble()))
                 "gcd" -> TValue4.TBigInt(BigInteger.valueOf(args[0].toLong()).gcd(BigInteger.valueOf(args[1].toLong())))
-                "lcm" -> { val a = BigInteger.valueOf(args[0].toLong()); val b = BigInteger.valueOf(args[1].toLong()); TValue4.TBigInt(a.divide(a.gcd(b)).multiply(b)) }
-                "factorial" -> { var res = BigInteger.ONE; for (i in 1..args[0].toLong().toInt()) res = res.multiply(BigInteger.valueOf(i.toLong())); TValue4.TBigInt(res) }
-                "comb" -> { val n = args[0].toLong().toInt(); val k = args[1].toLong().toInt(); var num = BigInteger.ONE; var den = BigInteger.ONE; for (i in 0 until k) { num = num.multiply(BigInteger.valueOf((n - i).toLong())); den = den.multiply(BigInteger.valueOf((i + 1).toLong())) }; TValue4.TBigInt(num.divide(den)) }
-                "perm" -> { val n = args[0].toLong().toInt(); val k = args[1].toLong().toInt(); var res = BigInteger.ONE; for (i in 0 until k) res = res.multiply(BigInteger.valueOf((n - i).toLong())); TValue4.TBigInt(res) }
+                "lcm" -> {
+                    val a = BigInteger.valueOf(args[0].toLong())
+                    val b = BigInteger.valueOf(args[1].toLong())
+                    TValue4.TBigInt(a.divide(a.gcd(b)).multiply(b))
+                }
+                "factorial" -> {
+                    var res = BigInteger.ONE
+                    for (i in 1..args[0].toLong().toInt()) res = res.multiply(BigInteger.valueOf(i.toLong()))
+                    TValue4.TBigInt(res)
+                }
+                "comb" -> {
+                    val n = args[0].toLong().toInt()
+                    val k = args[1].toLong().toInt()
+                    var num = BigInteger.ONE
+                    var den = BigInteger.ONE
+                    for (i in 0 until k) {
+                        num = num.multiply(BigInteger.valueOf((n - i).toLong()))
+                        den = den.multiply(BigInteger.valueOf((i + 1).toLong()))
+                    }
+                    TValue4.TBigInt(num.divide(den))
+                }
+                "perm" -> {
+                    val n = args[0].toLong().toInt()
+                    val k = args[1].toLong().toInt()
+                    var res = BigInteger.ONE
+                    for (i in 0 until k) res = res.multiply(BigInteger.valueOf((n - i).toLong()))
+                    TValue4.TBigInt(res)
+                }
                 
-                // --- CATEGORY THEORY (Typeclasses) ---
-                "mempty" -> { when(args[0].displayString()) { "num", "int" -> TValue4.TInt(0); "str" -> TValue4.TStr(""); "array" -> TValue4.TArray(); else -> TValue4.TNull } }
-                "mappend" -> { val l = args[0]; val r = args[1]; if (l is TValue4.TArray && r is TValue4.TArray) TValue4.TArray((l.items + r.items).toMutableList()) else if (l is TValue4.TStr && r is TValue4.TStr) TValue4.TStr(l.value + r.value) else TValue4.TNum(l.toDouble() + r.toDouble()) }
-                "ap" -> { val fs = args[0] as TValue4.TArray; val xs = args[1] as TValue4.TArray; val res = mutableListOf<TValue4>(); for (f in fs.items) for (x in xs.items) res.add(callTFunction(f as TValue4.TFunction, listOf(x), node.line)); TValue4.TArray(res) }
+                "mempty" -> {
+                    when (args[0].displayString()) {
+                        "num", "int" -> TValue4.TInt(0)
+                        "str" -> TValue4.TStr("")
+                        "array" -> TValue4.TArray()
+                        else -> TValue4.TNull
+                    }
+                }
+                "mappend" -> {
+                    val l = args[0]
+                    val r = args[1]
+                    if (l is TValue4.TArray && r is TValue4.TArray) TValue4.TArray((l.items + r.items).toMutableList())
+                    else if (l is TValue4.TStr && r is TValue4.TStr) TValue4.TStr(l.value + r.value)
+                    else TValue4.TNum(l.toDouble() + r.toDouble())
+                }
+                "ap" -> {
+                    val fs = args[0] as TValue4.TArray
+                    val xs = args[1] as TValue4.TArray
+                    val res = mutableListOf<TValue4>()
+                    for (f in fs.items) {
+                        for (x in xs.items) {
+                            res.add(callTFunction(f as TValue4.TFunction, listOf(x), node.line))
+                        }
+                    }
+                    TValue4.TArray(res)
+                }
                 "pure" -> TValue4.TArray(mutableListOf(args[0]))
-                "bind" -> { val m = args[0] as TValue4.TArray; val f = args[1] as TValue4.TFunction; val res = mutableListOf<TValue4>(); for (x in m.items) { val out = callTFunction(f, listOf(x), node.line); if (out is TValue4.TArray) res.addAll(out.items) else res.add(out) }; TValue4.TArray(res) }
-                "fmap" -> { val f = args[0] as TValue4.TFunction; val m = args[1] as TValue4.TArray; TValue4.TArray(m.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList()) }
+                "bind" -> {
+                    val m = args[0] as TValue4.TArray
+                    val f = args[1] as TValue4.TFunction
+                    val res = mutableListOf<TValue4>()
+                    for (x in m.items) {
+                        val out = callTFunction(f, listOf(x), node.line)
+                        if (out is TValue4.TArray) res.addAll(out.items) else res.add(out)
+                    }
+                    TValue4.TArray(res)
+                }
+                "fmap" -> {
+                    val f = args[0] as TValue4.TFunction
+                    val m = args[1] as TValue4.TArray
+                    TValue4.TArray(m.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
+                }
 
-                // --- ENGINE 3 COMPATIBILITY (Must remain intact) ---
-                "open_act" -> { if (args.isEmpty() || args[0] !is TValue4.TStr) throw TesseractError4("open_act requires a string", node.line); throw TesseractOpenActCommand4((args[0] as TValue4.TStr).value) }
+                "open_act" -> {
+                    if (args.isEmpty() || args[0] !is TValue4.TStr) throw TesseractError4("open_act requires a string", node.line)
+                    throw TesseractOpenActCommand4((args[0] as TValue4.TStr).value)
+                }
                 "set_seed" -> { standardRandom.setSeed(args[0].toLong()); TValue4.TInt(1) }
                 "random" -> TValue4.TNum(standardRandom.nextDouble())
-                "random_int" -> { val min = args[0].toLong(); val max = args[1].toLong(); if (min > max) throw TesseractError4("random_int: min > max", node.line); TValue4.TInt(min + standardRandom.nextInt((max - min + 1).toInt())) }
+                "random_int" -> {
+                    val min = args[0].toLong()
+                    val max = args[1].toLong()
+                    if (min > max) throw TesseractError4("random_int: min > max", node.line)
+                    TValue4.TInt(min + standardRandom.nextInt((max - min + 1).toInt()))
+                }
                 "secure_random" -> TValue4.TNum(secureRandom.nextDouble())
-                "secure_random_int" -> { val min = args[0].toLong(); val max = args[1].toLong(); TValue4.TInt(min + secureRandom.nextInt((max - min + 1).toInt())) }
-                "char_at" -> { val strVal = args[0]; val idx = args[1].toLong().toInt(); if (strVal is TValue4.TStr) { val actualIdx = if (idx < 0) strVal.value.length + idx else idx; if (actualIdx < 0 || actualIdx >= strVal.value.length) throw TesseractError4("Index out of bounds", node.line); TValue4.TStr(strVal.value[actualIdx].toString()) } else throw TesseractError4("char_at requires string", node.line) }
-                "len" -> { when (val arg = args[0]) { is TValue4.TStr -> TValue4.TInt(arg.value.length.toLong()); is TValue4.TArray -> TValue4.TInt(arg.items.size.toLong() + arg.fields.size.toLong()); else -> throw TesseractError4("len() requires string or array", node.line) } }
-                "type_of" -> { val typeStr = when (args[0]) { is TValue4.TNum -> "num"; is TValue4.TInt -> "int"; is TValue4.TStr -> "str"; is TValue4.TBool -> "bool"; is TValue4.TArray -> "array"; is TValue4.TFunction -> "function"; is TValue4.TNull -> "null"; is TValue4.TComplex -> "complex"; is TValue4.TMatrix -> "matrix"; is TValue4.TBigInt -> "bigint"; is TValue4.TRational -> "rational"; is TValue4.TPoly -> "poly"; else -> "unknown" }; TValue4.TStr(typeStr) }
-                "precise_eq" -> { if (args.size < 2) throw TesseractError4("precise_eq requires two arguments", node.line); TValue4.TBool(abs(args[0].toDouble() - args[1].toDouble()) < 1e-12) }
-                "round_exact" -> { if (args.size < 2) throw TesseractError4("round_exact requires value and decimals", node.line); val value = args[0].toDouble(); val scale = args[1].toLong().toInt(); val bd = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP); TValue4.TNum(bd.toDouble()) }
-                "bd_add" -> { if (args.size < 2) throw TesseractError4("bd_add requires two arguments", node.line); TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) + BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
-                "bd_sub" -> { if (args.size < 2) throw TesseractError4("bd_sub requires two arguments", node.line); TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) - BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
-                "bd_mul" -> { if (args.size < 2) throw TesseractError4("bd_mul requires two arguments", node.line); TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) * BigDecimal.valueOf(args[1].toDouble())).toDouble()) }
-                "bd_div" -> { if (args.size < 2) throw TesseractError4("bd_div requires at least two arguments", node.line); val a = BigDecimal.valueOf(args[0].toDouble()); val b = BigDecimal.valueOf(args[1].toDouble()); val scale = if (args.size >= 3) args[2].toLong().toInt() else 2; TValue4.TNum(a.divide(b, scale, RoundingMode.HALF_UP).toDouble()) }
-                "bd_sum" -> { val list = args.map { it.toDouble() }; if (list.isEmpty()) TValue4.TNum(0.0) else { var sum = BigDecimal.ZERO; for (num in list) sum = sum.add(BigDecimal.valueOf(num)); TValue4.TNum(sum.toDouble()) } }
+                "secure_random_int" -> {
+                    val min = args[0].toLong()
+                    val max = args[1].toLong()
+                    TValue4.TInt(min + secureRandom.nextInt((max - min + 1).toInt()))
+                }
+                "char_at" -> {
+                    val strVal = args[0]
+                    val idx = args[1].toLong().toInt()
+                    if (strVal is TValue4.TStr) {
+                        val actualIdx = if (idx < 0) strVal.value.length + idx else idx
+                        if (actualIdx < 0 || actualIdx >= strVal.value.length) throw TesseractError4("Index out of bounds", node.line)
+                        TValue4.TStr(strVal.value[actualIdx].toString())
+                    } else throw TesseractError4("char_at requires string", node.line)
+                }
+                "len" -> {
+                    when (val arg = args[0]) {
+                        is TValue4.TStr -> TValue4.TInt(arg.value.length.toLong())
+                        is TValue4.TArray -> TValue4.TInt(arg.items.size.toLong() + arg.fields.size.toLong())
+                        else -> throw TesseractError4("len() requires string or array", node.line)
+                    }
+                }
+                "type_of" -> {
+                    val typeStr = when (args[0]) {
+                        is TValue4.TNum -> "num"
+                        is TValue4.TInt -> "int"
+                        is TValue4.TStr -> "str"
+                        is TValue4.TBool -> "bool"
+                        is TValue4.TArray -> "array"
+                        is TValue4.TFunction -> "function"
+                        is TValue4.TNull -> "null"
+                        is TValue4.TComplex -> "complex"
+                        is TValue4.TMatrix -> "matrix"
+                        is TValue4.TBigInt -> "bigint"
+                        is TValue4.TRational -> "rational"
+                        is TValue4.TPoly -> "poly"
+                        else -> "unknown"
+                    }
+                    TValue4.TStr(typeStr)
+                }
+                "precise_eq" -> {
+                    if (args.size < 2) throw TesseractError4("precise_eq requires two arguments", node.line)
+                    TValue4.TBool(abs(args[0].toDouble() - args[1].toDouble()) < 1e-12)
+                }
+                "round_exact" -> {
+                    if (args.size < 2) throw TesseractError4("round_exact requires value and decimals", node.line)
+                    val value = args[0].toDouble()
+                    val scale = args[1].toLong().toInt()
+                    val bd = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP)
+                    TValue4.TNum(bd.toDouble())
+                }
+                "bd_add" -> {
+                    if (args.size < 2) throw TesseractError4("bd_add requires two arguments", node.line)
+                    TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) + BigDecimal.valueOf(args[1].toDouble())).toDouble())
+                }
+                "bd_sub" -> {
+                    if (args.size < 2) throw TesseractError4("bd_sub requires two arguments", node.line)
+                    TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) - BigDecimal.valueOf(args[1].toDouble())).toDouble())
+                }
+                "bd_mul" -> {
+                    if (args.size < 2) throw TesseractError4("bd_mul requires two arguments", node.line)
+                    TValue4.TNum((BigDecimal.valueOf(args[0].toDouble()) * BigDecimal.valueOf(args[1].toDouble())).toDouble())
+                }
+                "bd_div" -> {
+                    if (args.size < 2) throw TesseractError4("bd_div requires at least two arguments", node.line)
+                    val a = BigDecimal.valueOf(args[0].toDouble())
+                    val b = BigDecimal.valueOf(args[1].toDouble())
+                    val scale = if (args.size >= 3) args[2].toLong().toInt() else 2
+                    TValue4.TNum(a.divide(b, scale, RoundingMode.HALF_UP).toDouble())
+                }
+                "bd_sum" -> {
+                    val list = args.map { it.toDouble() }
+                    if (list.isEmpty()) TValue4.TNum(0.0) else {
+                        var sum = BigDecimal.ZERO
+                        for (num in list) sum = sum.add(BigDecimal.valueOf(num))
+                        TValue4.TNum(sum.toDouble())
+                    }
+                }
                 "sum" -> TValue4.TNum(if (args.isEmpty()) 0.0 else args.sumOf { it.toDouble() })
                 "max_val" -> TValue4.TNum(args.maxOfOrNull { it.toDouble() } ?: 0.0)
                 "min_val" -> TValue4.TNum(args.minOfOrNull { it.toDouble() } ?: 0.0)
                 "count" -> TValue4.TInt(args.size.toLong())
-                "median" -> { val sorted = args.map { it.toDouble() }.sorted(); if (sorted.isEmpty()) throw TesseractError4("median requires arguments", node.line); val mid = sorted.size / 2; val res = if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2.0 else sorted[mid]; TValue4.TNum(res) }
-                "toNum" -> TValue4.TNum(args[0].toDouble()); "toInt" -> TValue4.TInt(args[0].toLong())
+                "median" -> {
+                    val sorted = args.map { it.toDouble() }.sorted()
+                    if (sorted.isEmpty()) throw TesseractError4("median requires arguments", node.line)
+                    val mid = sorted.size / 2
+                    val res = if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2.0 else sorted[mid]
+                    TValue4.TNum(res)
+                }
+                "toNum" -> TValue4.TNum(args[0].toDouble())
+                "toInt" -> TValue4.TInt(args[0].toLong())
                 "log2" -> { MathGuard4.checkOverflow(ln(args[0].toDouble()) / ln(2.0), node.line); TValue4.TNum(ln(args[0].toDouble()) / ln(2.0)) }
                 "ln" -> { MathGuard4.checkOverflow(ln(args[0].toDouble()), node.line); TValue4.TNum(ln(args[0].toDouble())) }
                 "log10" -> { MathGuard4.checkOverflow(log10(args[0].toDouble()), node.line); TValue4.TNum(log10(args[0].toDouble())) }
@@ -579,37 +886,272 @@ class Evaluator4(private val context: Context) {
                 "root" -> { MathGuard4.checkOverflow(args[0].toDouble().pow(1.0 / args[1].toDouble()), node.line); TValue4.TNum(args[0].toDouble().pow(1.0 / args[1].toDouble())) }
                 "pow" -> { val r = args[0].toDouble().pow(args[1].toDouble()); MathGuard4.checkOverflow(r, node.line); TValue4.TNum(r) }
                 "exp" -> { val r = exp(args[0].toDouble()); MathGuard4.checkOverflow(r, node.line); TValue4.TNum(r) }
-                "sin" -> TValue4.TNum(sin(args[0].toDouble())); "cos" -> TValue4.TNum(cos(args[0].toDouble()))
+                "sin" -> TValue4.TNum(sin(args[0].toDouble()))
+                "cos" -> TValue4.TNum(cos(args[0].toDouble()))
                 "tan" -> { val rad = args[0].toDouble(); if (abs(cos(rad)) < 1e-10) throw TesseractError4("tan infinity", node.line, callStack.toList()); TValue4.TNum(tan(rad)) }
                 "asin" -> { if (args[0].toDouble() !in -1.0..1.0) throw TesseractError4("asin domain", node.line, callStack.toList()); TValue4.TNum(asin(args[0].toDouble())) }
                 "acos" -> { if (args[0].toDouble() !in -1.0..1.0) throw TesseractError4("acos domain", node.line, callStack.toList()); TValue4.TNum(acos(args[0].toDouble())) }
-                "atan" -> TValue4.TNum(atan(args[0].toDouble())); "sinh" -> TValue4.TNum(sinh(args[0].toDouble())); "cosh" -> TValue4.TNum(cosh(args[0].toDouble())); "tanh" -> TValue4.TNum(tanh(args[0].toDouble()))
-                "floor" -> TValue4.TInt(floor(args[0].toDouble()).toLong()); "ceil" -> TValue4.TInt(ceil(args[0].toDouble()).toLong()); "round" -> TValue4.TInt(round(args[0].toDouble()).toLong())
-                "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]; "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
-                "rev" -> when (val arg = args[0]) { is TValue4.TInt -> TValue4.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L); is TValue4.TStr -> TValue4.TStr(arg.value.reversed()); else -> throw TesseractError4("rev requires string or int", node.line) }
-                "setmetatable" -> { if (args.size != 2) throw TesseractError4("setmetatable requires two arguments", node.line); val table = args[0]; val mt = args[1]; if (table is TValue4.TArray) { table.metatable = mt; TValue4.TNull } else throw TesseractError4("setmetatable first argument must be an array/table", node.line) }
-                "map" -> { val arr = args[0] as TValue4.TArray; val f = args[1] as TValue4.TFunction; TValue4.TArray(arr.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList()) }
-                "filter" -> { val arr = args[0] as TValue4.TArray; val f = args[1] as TValue4.TFunction; TValue4.TArray(arr.items.filter { callTFunction(f, listOf(it), node.line).toBoolean() }.toMutableList()) }
-                "reduce" -> { val arr = args[0] as TValue4.TArray; val f = args[1] as TValue4.TFunction; var acc = args[2]; for (it in arr.items) acc = callTFunction(f, listOf(acc, it), node.line); acc }
-                "remove_at" -> { val arr = args[0] as TValue4.TArray; val idx = args[1] as TValue4.TInt; val rawIndex = idx.value.toInt(); val actualIndex = if (rawIndex < 0) arr.items.size + rawIndex else rawIndex; val newArr = arr.items.toMutableList(); newArr.removeAt(actualIndex); TValue4.TArray(newArr) }
-                "apply" -> { val func = args[0] as TValue4.TFunction; val argsArr = args[1] as TValue4.TArray; callTFunction(func, argsArr.items, node.line) }
-                "compose" -> { val f = args[0] as TValue4.TFunction; val g = args[1] as TValue4.TFunction; val composeEnv = env.createChild(); composeEnv.set("__compose_f__", f); composeEnv.set("__compose_g__", g); TValue4.TFunction(listOf("x"), listOf(Stmt4.ReturnStmt(Expr4.FuncCall("__compose_f__", listOf(Expr4.FuncCall("__compose_g__", listOf(Expr4.VarRef("x", node.line)), node.line)), node.line), node.line)), composeEnv) }
-                "memoize" -> { val func = args[0] as TValue4.TFunction; val memoEnv = func.closureEnv.createChild(); memoEnv.set("__memo_cache__", TValue4.TArray(mutableListOf())); val wrapper = TValue4.TArray(mutableListOf(func)); wrapper.fields["__memoized__"] = TValue4.TBool(true); wrapper }
-                "flatten" -> { val arr = args[0] as TValue4.TArray; val result = mutableListOf<TValue4>(); fun flattenRec(item: TValue4) { if (item is TValue4.TArray) { for (sub in item.items) flattenRec(sub) } else result.add(item) }; flattenRec(arr); TValue4.TArray(result) }
-                "zip" -> { val a = args[0] as TValue4.TArray; val b = args[1] as TValue4.TArray; val result = mutableListOf<TValue4>(); val minLen = minOf(a.items.size, b.items.size); for (i in 0 until minLen) result.add(TValue4.TArray(mutableListOf(a.items[i], b.items[i]))); TValue4.TArray(result) }
-                "range" -> { val start = if (args.size >= 2) args[0].toLong() else 0L; val end = if (args.size >= 2) args[1].toLong() else args[0].toLong(); val step = if (args.size == 3) args[2].toLong() else (if (start <= end) 1L else -1L); if (step == 0L) throw TesseractError4("range step cannot be zero", node.line); val result = mutableListOf<TValue4>(); var i = start; if (step > 0) { while (i < end) { result.add(TValue4.TInt(i)); i += step } } else { while (i > end) { result.add(TValue4.TInt(i)); i += step } }; TValue4.TArray(result) }
-                "all" -> { val arr = args[0] as TValue4.TArray; val pred = args[1] as TValue4.TFunction; var res = true; for (item in arr.items) { if (!callTFunction(pred, listOf(item), node.line).toBoolean()) { res = false; break } }; TValue4.TBool(res) }
-                "any" -> { val arr = args[0] as TValue4.TArray; val pred = args[1] as TValue4.TFunction; var res = false; for (item in arr.items) { if (callTFunction(pred, listOf(item), node.line).toBoolean()) { res = true; break } }; TValue4.TBool(res) }
-                "permutations" -> { val arr = (args[0] as TValue4.TArray).items; if (arr.size <= 1) TValue4.TArray(listOf(TValue4.TArray(arr.toMutableList()))); else { val result = mutableListOf<TValue4>(); for (i in arr.indices) { val current = arr[i]; val rest = arr.filterIndexed { idx, _ -> idx != i }; for (subPerm in generatePermutations4(rest)) { if (subPerm is TValue4.TArray) { val newPerm = mutableListOf(current); newPerm.addAll(subPerm.items); result.add(TValue4.TArray(newPerm)) } } }; TValue4.TArray(result) } }
-                "combinations" -> { val arr = args[0] as TValue4.TArray; val k = args[1] as TValue4.TInt; if (k.value.toInt() == 0) TValue4.TArray(listOf(TValue4.TArray(mutableListOf()))); else if (arr.items.isEmpty()) TValue4.TArray(mutableListOf()); else { val result = mutableListOf<TValue4>(); val first = arr.items[0]; val rest = arr.items.drop(1); for (sub in generateCombinations4(rest, k.value.toInt() - 1)) { if (sub is TValue4.TArray) { val newComb = mutableListOf(first); newComb.addAll(sub.items); result.add(TValue4.TArray(newComb)) } }; result.addAll(generateCombinations4(rest, k.value.toInt())); TValue4.TArray(result) } }
-                "match" -> { val pattern = args[0]; val value = args[1]; fun matchRec(p: TValue4, v: TValue4): Map<String, TValue4>? { if (p is TValue4.TStr && p.value.startsWith("?")) return mapOf(p.value.substring(1) to v); if (p is TValue4.TStr && p.value.startsWith("_")) return emptyMap(); if (p is TValue4.TNum && v is TValue4.TNum) return if (abs(p.value - v.value) < 1e-9) emptyMap() else null; if (p is TValue4.TInt && v is TValue4.TInt) return if (p.value == v.value) emptyMap() else null; if (p is TValue4.TStr && v is TValue4.TStr) return if (p.value == v.value) emptyMap() else null; if (p is TValue4.TBool && v is TValue4.TBool) return if (p.value == v.value) emptyMap() else null; if (p is TValue4.TArray && v is TValue4.TArray) { if (p.items.size != v.items.size) return null; var bindings = mutableMapOf<String, TValue4>(); for (i in p.items.indices) { val sub = matchRec(p.items[i], v.items[i]) ?: return null; for ((key, val_) in sub) { if (bindings.containsKey(key) && bindings[key] != val_) return null; bindings[key] = val_ } }; return bindings }; return null }; val bindings = matchRec(pattern, value); if (bindings != null) { val result = TValue4.TArray(mutableListOf()); for ((key, val_) in bindings) result.fields[key] = val_; result.fields["__matched__"] = TValue4.TBool(true); result } else { val result = TValue4.TArray(mutableListOf()); result.fields["__matched__"] = TValue4.TBool(false); result } }
-                "product" -> { val arrays = (args[0] as TValue4.TArray).items; if (arrays.isEmpty()) return@try TValue4.TArray(mutableListOf()); fun cartesian(lists: List<List<TValue4>>): List<List<TValue4>> { if (lists.isEmpty()) return listOf(emptyList()); val first = lists[0]; val restResult = cartesian(lists.drop(1)); val result = mutableListOf<List<TValue4>>(); for (item in first) for (rest in restResult) result.add(listOf(item) + rest); return result }; val listsOfItems = arrays.map { if (it is TValue4.TArray) it.items else listOf(it) }; val result = cartesian(listsOfItems).map { TValue4.TArray(it.toMutableList()) as TValue4 }; TValue4.TArray(result.toMutableList()) }
+                "atan" -> TValue4.TNum(atan(args[0].toDouble()))
+                "sinh" -> TValue4.TNum(sinh(args[0].toDouble()))
+                "cosh" -> TValue4.TNum(cosh(args[0].toDouble()))
+                "tanh" -> TValue4.TNum(tanh(args[0].toDouble()))
+                "floor" -> TValue4.TInt(floor(args[0].toDouble()).toLong())
+                "ceil" -> TValue4.TInt(ceil(args[0].toDouble()).toLong())
+                "round" -> TValue4.TInt(round(args[0].toDouble()).toLong())
+                "min" -> if (args[0].toDouble() < args[1].toDouble()) args[0] else args[1]
+                "max" -> if (args[0].toDouble() > args[1].toDouble()) args[0] else args[1]
+                "rev" -> when (val arg = args[0]) {
+                    is TValue4.TInt -> TValue4.TInt(arg.value.toString().reversed().toLongOrNull() ?: 0L)
+                    is TValue4.TStr -> TValue4.TStr(arg.value.reversed())
+                    else -> throw TesseractError4("rev requires string or int", node.line)
+                }
+                "setmetatable" -> {
+                    if (args.size != 2) throw TesseractError4("setmetatable requires two arguments", node.line)
+                    val table = args[0]
+                    val mt = args[1]
+                    if (table is TValue4.TArray) {
+                        table.metatable = mt
+                        TValue4.TNull
+                    } else {
+                        throw TesseractError4("setmetatable first argument must be an array/table", node.line)
+                    }
+                }
+                "map" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val f = args[1] as TValue4.TFunction
+                    TValue4.TArray(arr.items.map { callTFunction(f, listOf(it), node.line) }.toMutableList())
+                }
+                "filter" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val f = args[1] as TValue4.TFunction
+                    TValue4.TArray(arr.items.filter { callTFunction(f, listOf(it), node.line).toBoolean() }.toMutableList())
+                }
+                "reduce" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val f = args[1] as TValue4.TFunction
+                    var acc = args[2]
+                    for (it in arr.items) acc = callTFunction(f, listOf(acc, it), node.line)
+                    acc
+                }
+                "remove_at" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val idx = args[1] as TValue4.TInt
+                    val rawIndex = idx.value.toInt()
+                    val actualIndex = if (rawIndex < 0) arr.items.size + rawIndex else rawIndex
+                    val newArr = arr.items.toMutableList()
+                    newArr.removeAt(actualIndex)
+                    TValue4.TArray(newArr)
+                }
+                "apply" -> {
+                    val func = args[0] as TValue4.TFunction
+                    val argsArr = args[1] as TValue4.TArray
+                    callTFunction(func, argsArr.items, node.line)
+                }
+                "compose" -> {
+                    val f = args[0] as TValue4.TFunction
+                    val g = args[1] as TValue4.TFunction
+                    val composeEnv = env.createChild()
+                    composeEnv.set("__compose_f__", f)
+                    composeEnv.set("__compose_g__", g)
+                    TValue4.TFunction(
+                        listOf("x"),
+                        listOf(Stmt4.ReturnStmt(Expr4.FuncCall("__compose_f__", listOf(Expr4.FuncCall("__compose_g__", listOf(Expr4.VarRef("x", node.line)), node.line)), node.line), node.line)),
+                        composeEnv
+                    )
+                }
+                "memoize" -> {
+                    val func = args[0] as TValue4.TFunction
+                    val memoEnv = func.closureEnv.createChild()
+                    memoEnv.set("__memo_cache__", TValue4.TArray(mutableListOf()))
+                    val wrapper = TValue4.TArray(mutableListOf(func))
+                    wrapper.fields["__memoized__"] = TValue4.TBool(true)
+                    wrapper
+                }
+                "flatten" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val result = mutableListOf<TValue4>()
+                    fun flattenRec(item: TValue4) {
+                        if (item is TValue4.TArray) {
+                            for (sub in item.items) flattenRec(sub)
+                        } else {
+                            result.add(item)
+                        }
+                    }
+                    flattenRec(arr)
+                    TValue4.TArray(result)
+                }
+                "zip" -> {
+                    val a = args[0] as TValue4.TArray
+                    val b = args[1] as TValue4.TArray
+                    val result = mutableListOf<TValue4>()
+                    val minLen = minOf(a.items.size, b.items.size)
+                    for (i in 0 until minLen) {
+                        result.add(TValue4.TArray(mutableListOf(a.items[i], b.items[i])))
+                    }
+                    TValue4.TArray(result)
+                }
+                "range" -> {
+                    val start = if (args.size >= 2) args[0].toLong() else 0L
+                    val end = if (args.size >= 2) args[1].toLong() else args[0].toLong()
+                    val step = if (args.size == 3) args[2].toLong() else (if (start <= end) 1L else -1L)
+                    if (step == 0L) throw TesseractError4("range step cannot be zero", node.line)
+                    val result = mutableListOf<TValue4>()
+                    var i = start
+                    if (step > 0) {
+                        while (i < end) {
+                            result.add(TValue4.TInt(i))
+                            i += step
+                        }
+                    } else {
+                        while (i > end) {
+                            result.add(TValue4.TInt(i))
+                            i += step
+                        }
+                    }
+                    TValue4.TArray(result)
+                }
+                "all" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val pred = args[1] as TValue4.TFunction
+                    var res = true
+                    for (item in arr.items) {
+                        if (!callTFunction(pred, listOf(item), node.line).toBoolean()) {
+                            res = false
+                            break
+                        }
+                    }
+                    TValue4.TBool(res)
+                }
+                "any" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val pred = args[1] as TValue4.TFunction
+                    var res = false
+                    for (item in arr.items) {
+                        if (callTFunction(pred, listOf(item), node.line).toBoolean()) {
+                            res = true
+                            break
+                        }
+                    }
+                    TValue4.TBool(res)
+                }
+                "permutations" -> {
+                    val arr = (args[0] as TValue4.TArray).items
+                    if (arr.size <= 1) {
+                        TValue4.TArray(listOf(TValue4.TArray(arr.toMutableList())))
+                    } else {
+                        val result = mutableListOf<TValue4>()
+                        for (i in arr.indices) {
+                            val current = arr[i]
+                            val rest = arr.filterIndexed { idx, _ -> idx != i }
+                            for (subPerm in generatePermutations4(rest)) {
+                                if (subPerm is TValue4.TArray) {
+                                    val newPerm = mutableListOf(current)
+                                    newPerm.addAll(subPerm.items)
+                                    result.add(TValue4.TArray(newPerm))
+                                }
+                            }
+                        }
+                        TValue4.TArray(result)
+                    }
+                }
+                "combinations" -> {
+                    val arr = args[0] as TValue4.TArray
+                    val k = args[1] as TValue4.TInt
+                    if (k.value.toInt() == 0) {
+                        TValue4.TArray(listOf(TValue4.TArray(mutableListOf())))
+                    } else if (arr.items.isEmpty()) {
+                        TValue4.TArray(mutableListOf())
+                    } else {
+                        val result = mutableListOf<TValue4>()
+                        val first = arr.items[0]
+                        val rest = arr.items.drop(1)
+                        for (sub in generateCombinations4(rest, k.value.toInt() - 1)) {
+                            if (sub is TValue4.TArray) {
+                                val newComb = mutableListOf(first)
+                                newComb.addAll(sub.items)
+                                result.add(TValue4.TArray(newComb))
+                            }
+                        }
+                        result.addAll(generateCombinations4(rest, k.value.toInt()))
+                        TValue4.TArray(result)
+                    }
+                }
+                "match" -> {
+                    val pattern = args[0]
+                    val value = args[1]
+                    fun matchRec(p: TValue4, v: TValue4): Map<String, TValue4>? {
+                        if (p is TValue4.TStr && p.value.startsWith("?")) return mapOf(p.value.substring(1) to v)
+                        if (p is TValue4.TStr && p.value.startsWith("_")) return emptyMap()
+                        if (p is TValue4.TNum && v is TValue4.TNum) return if (abs(p.value - v.value) < 1e-9) emptyMap() else null
+                        if (p is TValue4.TInt && v is TValue4.TInt) return if (p.value == v.value) emptyMap() else null
+                        if (p is TValue4.TStr && v is TValue4.TStr) return if (p.value == v.value) emptyMap() else null
+                        if (p is TValue4.TBool && v is TValue4.TBool) return if (p.value == v.value) emptyMap() else null
+                        if (p is TValue4.TArray && v is TValue4.TArray) {
+                            if (p.items.size != v.items.size) return null
+                            var bindings = mutableMapOf<String, TValue4>()
+                            for (i in p.items.indices) {
+                                val sub = matchRec(p.items[i], v.items[i]) ?: return null
+                                for ((key, val_) in sub) {
+                                    if (bindings.containsKey(key) && bindings[key] != val_) return null
+                                    bindings[key] = val_
+                                }
+                            }
+                            return bindings
+                        }
+                        return null
+                    }
+                    val bindings = matchRec(pattern, value)
+                    if (bindings != null) {
+                        val result = TValue4.TArray(mutableListOf())
+                        for ((key, val_) in bindings) result.fields[key] = val_
+                        result.fields["__matched__"] = TValue4.TBool(true)
+                        result
+                    } else {
+                        val result = TValue4.TArray(mutableListOf())
+                        result.fields["__matched__"] = TValue4.TBool(false)
+                        result
+                    }
+                }
+                "product" -> {
+                    val arrays = (args[0] as TValue4.TArray).items
+                    if (arrays.isEmpty()) {
+                        TValue4.TArray(mutableListOf())
+                    } else {
+                        fun cartesian(lists: List<List<TValue4>>): List<List<TValue4>> {
+                            if (lists.isEmpty()) return listOf(emptyList())
+                            val first = lists[0]
+                            val restResult = cartesian(lists.drop(1))
+                            val result = mutableListOf<List<TValue4>>()
+                            for (item in first) {
+                                for (rest in restResult) {
+                                    result.add(listOf(item) + rest)
+                                }
+                            }
+                            return result
+                        }
+                        val listsOfItems = arrays.map { if (it is TValue4.TArray) it.items else listOf(it) }
+                        val result = cartesian(listsOfItems).map { TValue4.TArray(it.toMutableList()) as TValue4 }
+                        TValue4.TArray(result.toMutableList())
+                    }
+                }
                 "poly" -> TValue4.TPoly(args.map { it.toDouble() })
-                "eval_poly" -> { val p = args[0] as TValue4.TPoly; val x = args[1].toDouble(); var res = 0.0; var xn = 1.0; for (c in p.coeffs) { res += c * xn; xn *= x }; TValue4.TNum(res) }
+                "eval_poly" -> {
+                    val p = args[0] as TValue4.TPoly
+                    val x = args[1].toDouble()
+                    var res = 0.0
+                    var xn = 1.0
+                    for (c in p.coeffs) {
+                        res += c * xn
+                        xn *= x
+                    }
+                    TValue4.TNum(res)
+                }
                 "exit" -> throw TesseractExitCommand4(if (args.isNotEmpty()) args[0].toLong() else 0L)
                 else -> throw TesseractError4("Unknown function: ${node.name}", node.line, callStack.toList())
             }
-        } finally { callStack.removeLast() }
+        } finally {
+            callStack.removeLast()
+        }
         return result
     }
 
