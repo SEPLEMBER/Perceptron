@@ -332,7 +332,7 @@ class TesseractActivity : AppCompatActivity() {
             val et = EditText(this).apply {
                 setText(const.defaultValue.toString())
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
-                setTextColor(Color.parseColor("#00E676")); setHintTextColor(Color.GRAY)
+                setTextColor(Color.parseColor("#00FFFF")); setHintTextColor(Color.GRAY)
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#C792EA"))
                 setLongClickable(false); setTextIsSelectable(false)
                 val actionModeCallback = object : ActionMode.Callback {
