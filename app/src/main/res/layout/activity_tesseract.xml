@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 1. TOP BAR (Панель инструментов IDE) -->
+        <!-- 1. TOP BAR -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -202,7 +202,7 @@
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 2. MAIN EDITOR AREA (С улучшенным левым скроллом) -->
+        <!-- 2. MAIN EDITOR AREA (С невидимым быстрым скроллом) -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -211,7 +211,7 @@
 
             <!-- Фон Gutter -->
             <LinearLayout
-                android:layout_width="16dp"
+                android:layout_width="24dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
                 android:orientation="vertical"
@@ -223,31 +223,32 @@
                     android:background="#1F1F1F" />
             </LinearLayout>
             
-            <!-- Ползунок быстрого скролла (Neon Cyan, увеличен для удобства) -->
+            <!-- НЕВИДИМЫЙ ползунок быстрого скролла (только для touch area) -->
             <View
                 android:id="@+id/quickScrollThumb"
-                android:layout_width="16dp"
+                android:layout_width="24dp"
                 android:layout_height="48dp"
                 android:layout_gravity="start|top"
                 android:layout_marginStart="0dp"
                 android:layout_marginTop="0dp"
-                android:background="#00E5FF"
-                android:elevation="4dp" />
+                android:background="@android:color/transparent"
+                android:clickable="true"
+                android:focusable="true" />
 
             <!-- Разделитель -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
-                android:layout_marginStart="16dp"
+                android:layout_marginStart="24dp"
                 android:background="#2C2F33" />
 
-            <!-- Поле ввода кода -->
+            <!-- Поле ввода кода (без скроллбара) -->
             <EditText
                 android:id="@+id/etScript"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginStart="17dp"
+                android:layout_marginStart="25dp"
                 android:background="#0F0F0F"
                 android:textColor="#EEFFFF"
                 android:textColorHint="#4A4A4A"
@@ -261,13 +262,12 @@
                 android:importantForAutofill="no"
                 android:freezesText="false"
                 android:saveEnabled="false"
-                android:scrollbars="vertical"
+                android:scrollbars="none"
                 android:fadeScrollbars="false"
-                android:scrollbarThumbVertical="@android:color/darker_gray"
                 android:typeface="monospace" />
         </FrameLayout>
 
-        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ (Скрыта по умолчанию) -->
+        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ -->
         <LinearLayout
             android:id="@+id/searchPanel"
             android:layout_width="match_parent"
@@ -382,7 +382,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Тонкая граница над статус-баром -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -471,7 +470,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- СЛОЙ ЗАТЕМНЕНИЯ -->
     <View
         android:id="@+id/dimView"
         android:layout_width="match_parent"
@@ -481,7 +479,6 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- ОВЕРЛЕЙ РЕЗУЛЬТАТОВ -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
