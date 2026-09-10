@@ -69,9 +69,15 @@ sealed class TValue4 {
         is TInt -> value.toString(); is TBigInt -> value.toString(); is TStr -> value
         is TBool -> if (value) "true" else "false"
         is TComplex -> { 
-            val r = if (re % 1.0 == 0.0) re.toLong().toString() else re.toString()
-            val i = if (im % 1.0 == 0.0) im.toLong().toString() else im.toString()
-            if (im == 0.0) r else if (re == 0.0) "${i}i" else "$r + ${i}i" 
+            val r = if (re % 1.0 == 0.0 && abs(re) < 1e15) re.toLong().toString() else re.toString()
+            val iAbs = abs(im)
+            val iStr = if (iAbs % 1.0 == 0.0 && iAbs < 1e15) iAbs.toLong().toString() else iAbs.toString()
+            val sign = if (im < 0) " - " else " + "
+            when {
+                im == 0.0 -> r
+                re == 0.0 -> "${if (im < 0) "-" else ""}${iStr}i"
+                else -> "$r$sign${iStr}i"
+            }
         }
         is TMatrix -> "Matrix(${rows}x${cols})"
         is TRational -> if (den == BigInteger.ONE) num.toString() else "${num}/${den}"
