@@ -180,7 +180,7 @@ class Lexer4(private val source: String) {
             if (currentChar() == '\\') { advance(); when (currentChar()) { 'n' -> sb.append('\n'); 't' -> sb.append('\t'); 'r' -> sb.append('\r'); '\\' -> sb.append('\\'); '"' -> sb.append('"'); else -> sb.append(currentChar()) } } else sb.append(currentChar())
             advance()
         }
-        addToken(TokenType4.STRING, sb.toString()); if (pos < source.length && currentChar() == '"") advance()
+        addToken(TokenType4.STRING, sb.toString()); if (pos < source.length && currentChar() == '"') advance()
     }
 
     private fun readIdentifier() { 
