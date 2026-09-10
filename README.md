@@ -1,7 +1,7 @@
 ![Logo](LogoQuasar.jpg)
 
 --- 
-
+ 
 # 🌌 Perceptron 
 **A Domain-Specific Language (DSL) for Mathematical Logic and Decision-Making on Mobile Devices.**
 
