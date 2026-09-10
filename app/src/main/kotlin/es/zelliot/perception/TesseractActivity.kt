@@ -14,10 +14,13 @@ import android.text.Spanned
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.view.ActionMode
+import android.view.GestureDetector
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -43,6 +46,12 @@ class TesseractActivity : AppCompatActivity() {
     private val activityScope = CoroutineScope(Dispatchers.Main + Job())
     private var currentFileUri: Uri? = null
 
+    // --- ПЕРЕМЕННЫЕ ДЛЯ ПОИСКА И СКРОЛЛА ---
+    private var isSearchPanelOpen = false
+    private var searchMatches = listOf<IntRange>()
+    private var currentMatchIndex = -1
+    private var searchDebounceJob: Job? = null
+
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             currentFileUri = uri
@@ -67,8 +76,17 @@ class TesseractActivity : AppCompatActivity() {
         setupOverlays()
         checkIntentForShortcut()
         
+        // Инициализация новых функций
+        setupSearchAndScroll()
+        
         val callback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() { showExitConfirmationDialog() }
+            override fun handleOnBackPressed() { 
+                if (isSearchPanelOpen) {
+                    closeSearchPanel() // Сначала закрываем панель поиска
+                } else {
+                    showExitConfirmationDialog() 
+                }
+            }
         }
         onBackPressedDispatcher.addCallback(this, callback)
     }
@@ -307,7 +325,6 @@ class TesseractActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // ВАРИАНТ Б: Проверка на наличие уникальных ключевых слов или операторов Engine 4
                 val isEngine4Script = Regex("\\b(matrix|complex|gcd|lcm|factorial|comb|perm|is_finite|is_integer|is_close|rational|differentiate|integrate|simplify|solve|factor|expand|mempty|mappend|fmap|ap|bind|pure|transpose|det|inverse|dot|norm|cross|identity|zeros|ones|hypot|atan2|degrees|radians|sign|clamp|arg|conj|real|imag)\\b|\\*\\*").containsMatchIn(script)
 
                 val result = try {
@@ -359,7 +376,7 @@ class TesseractActivity : AppCompatActivity() {
                 } catch (ex: Exception) {
                     showResult(getString(R.string.error_open_target_exception, target, ex.message ?: "Unknown"))
                 }
-            } catch (e: TesseractOpenActCommand4) { // Добавлена поддержка исключений Engine 4
+            } catch (e: TesseractOpenActCommand4) {
                 val target = e.packageName
                 try {
                     val intent: Intent? = if (target.contains("/")) {
@@ -411,31 +428,240 @@ class TesseractActivity : AppCompatActivity() {
     }
 
     // ========================================================================
-    // ИСПРАВЛЕННЫЙ ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА
+    // НОВЫЕ ФУНКЦИИ: ПОИСК, ЗАМЕНА И БЫСТРЫЙ СКРОЛЛ
+    // ========================================================================
+    private fun setupSearchAndScroll() {
+        setupSwipeGestures()
+        setupSearchListeners()
+        setupQuickScroll()
+    }
+
+    private fun setupSwipeGestures() {
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                val deltaX = e2.x - (e1?.x ?: 0f)
+                val deltaY = e2.y - (e1?.y ?: 0f)
+                
+                // Горизонтальный свайп, достаточно длинный и быстрый
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 100f && Math.abs(velocityX) > 100f) {
+                    if (deltaX < 0) {
+                        openSearchPanel() // Свайп справа налево
+                        return true
+                    } else if (isSearchPanelOpen) {
+                        closeSearchPanel() // Свайп слева направо (только если открыто)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        // Вешаем на корневой layout, чтобы свайп работал в любом месте экрана
+        binding.root.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            false // не блокируем обычные клики
+        }
+    }
+
+    private fun openSearchPanel() {
+        isSearchPanelOpen = true
+        binding.searchPanel.visibility = View.VISIBLE
+        binding.searchPanel.alpha = 0f
+        binding.searchPanel.animate().alpha(1f).setDuration(200).start()
+        binding.etSearch.requestFocus()
+        performSearch()
+    }
+
+    private fun closeSearchPanel() {
+        isSearchPanelOpen = false
+        binding.searchPanel.animate().alpha(0f).setDuration(150).withEndAction {
+            binding.searchPanel.visibility = View.GONE
+            binding.etSearch.clearFocus()
+            hideKeyboard()
+        }.start()
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(currentFocus?.windowToken, 0)
+    }
+
+    private fun setupSearchListeners() {
+        binding.etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                searchDebounceJob?.cancel()
+                searchDebounceJob = activityScope.launch {
+                    delay(300) // Debounce 300мс
+                    performSearch()
+                }
+            }
+        })
+
+        binding.btnSearchPrev.setOnClickListener { goToMatch(-1) }
+        binding.btnSearchNext.setOnClickListener { goToMatch(1) }
+        binding.btnReplaceOne.setOnClickListener { replaceCurrentMatch() }
+        binding.btnReplaceAll.setOnClickListener { showReplaceAllDialog() }
+    }
+
+    private fun performSearch() {
+        val query = binding.etSearch.text.toString()
+        val text = binding.etScript.text.toString()
+        searchMatches = mutableListOf()
+        currentMatchIndex = -1
+
+        if (query.isNotEmpty()) {
+            var index = text.indexOf(query, 0, ignoreCase = true)
+            while (index != -1) {
+                (searchMatches as MutableList).add(index until index + query.length)
+                index = text.indexOf(query, index + query.length, ignoreCase = true)
+            }
+        }
+
+        if (searchMatches.isNotEmpty()) {
+            currentMatchIndex = 0
+            highlightAndScrollToMatch()
+        } else {
+            binding.etScript.setSelection(0)
+        }
+    }
+
+    private fun goToMatch(direction: Int) {
+        if (searchMatches.isEmpty()) return
+        currentMatchIndex = (currentMatchIndex + direction).mod(searchMatches.size)
+        highlightAndScrollToMatch()
+    }
+
+    private fun highlightAndScrollToMatch() {
+        val range = searchMatches[currentMatchIndex]
+        // setSelection автоматически скроллит EditText к нужной позиции
+        binding.etScript.setSelection(range.start, range.endInclusive + 1)
+        showToast("Совпадение ${currentMatchIndex + 1} из ${searchMatches.size}")
+    }
+
+    private fun replaceCurrentMatch() {
+        if (currentMatchIndex == -1 || searchMatches.isEmpty()) return
+        
+        val text = binding.etScript.text.toString()
+        val range = searchMatches[currentMatchIndex]
+        val replaceText = binding.etReplace.text.toString()
+        
+        val newText = text.replaceRange(range, replaceText)
+        binding.etScript.setText(newText)
+        
+        performSearch()
+        showToast("Заменено")
+    }
+
+    private fun showReplaceAllDialog() {
+        val query = binding.etSearch.text.toString()
+        if (query.isEmpty()) return
+
+        val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
+        AlertDialog.Builder(darkContext)
+            .setTitle("Заменить всё?")
+            .setMessage("Заменить все вхождения \"$query\" на \"${binding.etReplace.text}\"?")
+            .setPositiveButton("ДА") { _, _ ->
+                val text = binding.etScript.text.toString()
+                // Pattern.quote экранирует спецсимволы, IGNORE_CASE делает замену нечувствительной к регистру
+                val regex = Regex(Pattern.quote(query), RegexOption.IGNORE_CASE)
+                val newText = text.replace(regex, binding.etReplace.text.toString())
+                
+                binding.etScript.setText(newText)
+                performSearch()
+                showToast("Все совпадения заменены")
+            }
+            .setNegativeButton("ОТМЕНА", null)
+            .show()
+    }
+
+    private fun setupQuickScroll() {
+        // Обновляем позицию ползунка при скролле EditText
+        binding.etScript.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                updateQuickScrollThumb()
+                binding.etScript.viewTreeObserver.removeOnGlobalLayoutListener(this)
+            }
+        })
+
+        binding.etScript.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            updateQuickScrollThumb()
+        }
+
+        // Обработка перетаскивания ползунка
+        binding.quickScrollThumb.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                    val parentView = v.parent as View
+                    val parentHeight = parentView.height
+                    val thumbHeight = v.height
+                    val maxThumbTop = parentHeight - thumbHeight
+                    
+                    var newTop = event.y - (thumbHeight / 2f)
+                    newTop = newTop.coerceIn(0f, maxThumbTop.toFloat())
+                    v.y = newTop
+                    
+                    val layout = binding.etScript.layout ?: return@setOnTouchListener true
+                    val totalLines = layout.lineCount
+                    if (totalLines > 0) {
+                        val scrollRatio = newTop / maxThumbTop
+                        val targetLine = (totalLines * scrollRatio).toInt().coerceIn(0, totalLines - 1)
+                        val targetPos = layout.getLineStart(targetLine)
+                        binding.etScript.setSelection(targetPos)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun updateQuickScrollThumb() {
+        val layout = binding.etScript.layout ?: return
+        val totalLines = layout.lineCount
+        if (totalLines == 0) return
+
+        val parentView = binding.quickScrollThumb.parent as View
+        val parentHeight = parentView.height
+        val thumbHeight = binding.quickScrollThumb.height
+        
+        val firstVisibleLine = layout.getLineForVertical(binding.etScript.scrollY)
+        val scrollRatio = firstVisibleLine.toFloat() / totalLines
+        
+        val maxThumbTop = parentHeight - thumbHeight
+        val newTop = (maxThumbTop * scrollRatio).coerceIn(0f, maxThumbTop.toFloat())
+        
+        binding.quickScrollThumb.y = newTop
+        
+        // Динамическая высота ползунка для удобства захвата
+        val dynamicHeight = (parentHeight * (parentHeight.toFloat() / binding.etScript.height)).coerceIn(30f, 80f)
+        if (Math.abs(binding.quickScrollThumb.height - dynamicHeight) > 5) {
+            val params = binding.quickScrollThumb.layoutParams
+            params.height = dynamicHeight.toInt()
+            binding.quickScrollThumb.layoutParams = params
+        }
+    }
+
+    // ========================================================================
+    // ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА (без изменений)
     // ========================================================================
     private class TesseractHighlighter(
         private val editText: EditText,
         private val lifecycle: androidx.lifecycle.Lifecycle
     ) : TextWatcher {
-        private val colorKeyword = Color.parseColor("#C792EA")   // Фиолетовый: val, for, if, true
-        private val colorString = Color.parseColor("#C3E88D")    // Лаймовый: "строки"
-        private val colorComment = Color.parseColor("#546E7A")   // Серый: # комментарии
-        private val colorNumber = Color.parseColor("#F78C6C")    // Оранжевый: 123, 0.5
-        private val colorFunction = Color.parseColor("#82AAFF")  // Голубой: print(, len(
-        private val colorOperator = Color.parseColor("#89DDFF")  // Бирюзовый: +, =, ., ==
+        private val colorKeyword = Color.parseColor("#C792EA")
+        private val colorString = Color.parseColor("#C3E88D")
+        private val colorComment = Color.parseColor("#546E7A")
+        private val colorNumber = Color.parseColor("#F78C6C")
+        private val colorFunction = Color.parseColor("#82AAFF")
+        private val colorOperator = Color.parseColor("#89DDFF")
 
-        // ИСПРАВЛЕНО: Регулярка теперь корректно понимает экранированные символы внутри строк (\", \\)
         private val stringPattern = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|`(?:[^`\\\\]|\\\\.)*`)")
         private val commentPattern = Pattern.compile("(//.*|/\\*[\\s\\S]*?\\*/|#.*)")
-        
-        // Только строгие ключевые слова (print и len убраны отсюда, они ловятся functionPattern)
         private val keywordPattern = Pattern.compile("\\b(if|else|elif|for|while|do|return|break|continue|try|catch|finally|throw|val|var|const|fn|function|class|interface|object|package|import|from|as|in|is|not|and|or|true|false|null|void|exit|assert|to)\\b")
-        
-        // Любое слово, за которым следует '(' (с возможным пробелом)
         private val functionPattern = Pattern.compile("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(")
         private val numberPattern = Pattern.compile("\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b")
-        
-        // Добавлена точка (\\.) для подсветки вызовов методов
         private val operatorPattern = Pattern.compile("(==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|\\+=|-=|\\*=|/=|%=|\\.)")
 
         private var debounceJob: Job? = null
@@ -462,17 +688,12 @@ class TesseractActivity : AppCompatActivity() {
                 if (text.length > 50000) { applyMinimalHighlighting(editable, text); return }
                 
                 removeOldSpans(editable)
-                
-                // Порядок важен: сначала строки и комментарии, чтобы их содержимое не перекрашивалось
                 applyPatternSafe(editable, text, stringPattern, colorString)
                 applyPatternSafe(editable, text, commentPattern, colorComment)
-                
-                // Затем операторы, ключевые слова, функции и числа
                 applyPatternSafe(editable, text, operatorPattern, colorOperator)
                 applyPatternSafe(editable, text, keywordPattern, colorKeyword)
                 applyPatternSafe(editable, text, functionPattern, colorFunction)
                 applyPatternSafe(editable, text, numberPattern, colorNumber)
-                
             } catch (e: Exception) {
                 android.util.Log.w("TesseractHighlighter", "Error applying syntax highlighting", e)
             }
@@ -509,7 +730,6 @@ class TesseractActivity : AppCompatActivity() {
             } catch (e: Exception) {}
         }
         
-        // ИСПРАВЛЕНО: Железобетонная логика пропуска экранированных символов
         private fun isInsideStringOrComment(text: String, start: Int, end: Int): Boolean {
             try {
                 var inDoubleQuote = false
@@ -519,7 +739,6 @@ class TesseractActivity : AppCompatActivity() {
                 var i = 0
                 
                 while (i < start) {
-                    // Если видим слеш, пропускаем его и следующий символ целиком (это экранирование)
                     if (text[i] == '\\') {
                         i += 2
                         continue
