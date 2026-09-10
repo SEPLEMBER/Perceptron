@@ -891,8 +891,7 @@ class Evaluator4(private val context: Context) {
                 }
                 
                 "is_integer" -> {
-                    val arg = args[0]
-                    val isInt = when (arg) {
+                    val isInt = when (val arg = args[0]) {
                         is TValue4.TInt, is TValue4.TBigInt -> true
                         is TValue4.TNum -> arg.value % 1.0 == 0.0
                         is TValue4.TRational -> arg.den == BigInteger.ONE
@@ -915,10 +914,10 @@ class Evaluator4(private val context: Context) {
                         if (n < 4) prime = true
                         else if (n % 2 == 0L || n % 3 == 0L) prime = false
                         else {
-                            var i = 5L
-                            while (i * i <= n) {
-                                if (n % i == 0L || n % (i + 2) == 0L) { prime = false; break }
-                                i += 6
+                            var check_i = 5L
+                            while (check_i * check_i <= n) {
+                                if (n % check_i == 0L || n % (check_i + 2) == 0L) { prime = false; break }
+                                check_i += 6
                             }
                         }
                         TValue4.TBool(prime)
@@ -945,10 +944,10 @@ class Evaluator4(private val context: Context) {
                         if (x < 2) return false
                         if (x < 4) return true
                         if (x % 2 == 0L || x % 3 == 0L) return false
-                        var i = 5L
-                        while (i * i <= x) {
-                            if (x % i == 0L || x % (i + 2) == 0L) return false
-                            i += 6
+                        var check_i = 5L
+                        while (check_i * check_i <= x) {
+                            if (x % check_i == 0L || x % (check_i + 2) == 0L) return false
+                            check_i += 6
                         }
                         return true
                     }
@@ -1164,20 +1163,20 @@ class Evaluator4(private val context: Context) {
                     if (n > 1_048_576) throw TesseractError4("fft: array too large (max 2^20 = 1,048,576)", node.line)
                     
                     fun fftRec(x: List<TValue4.TComplex>): List<TValue4.TComplex> {
-                        val n = x.size
-                        if (n == 1) return x
+                        val local_n = x.size
+                        if (local_n == 1) return x
                         val even = fftRec(x.filterIndexed { i, _ -> i % 2 == 0 })
                         val odd = fftRec(x.filterIndexed { i, _ -> i % 2 == 1 })
-                        val result = MutableList<TValue4.TComplex>(n) { TValue4.TComplex(0.0, 0.0) }
-                        val ang = 2 * PI / n
+                        val result = MutableList<TValue4.TComplex>(local_n) { TValue4.TComplex(0.0, 0.0) }
+                        val ang = 2 * PI / local_n
                         val wlen = TValue4.TComplex(cos(ang), sin(ang))
                         var w = TValue4.TComplex(1.0, 0.0)
-                        for (i in 0 until n / 2) {
+                        for (i in 0 until local_n / 2) {
                             val evenVal = even[i]
                             val oddVal = odd[i]
                             val wOdd = TValue4.TComplex(w.re * oddVal.re - w.im * oddVal.im, w.re * oddVal.im + w.im * oddVal.re)
                             result[i] = TValue4.TComplex(evenVal.re + wOdd.re, evenVal.im + wOdd.im)
-                            result[i + n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
+                            result[i + local_n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
                             w = TValue4.TComplex(w.re * wlen.re - w.im * wlen.im, w.re * wlen.im + w.im * wlen.re)
                         }
                         return result
@@ -1201,20 +1200,20 @@ class Evaluator4(private val context: Context) {
                     if (n > 1_048_576) throw TesseractError4("ifft: array too large (max 2^20 = 1,048,576)", node.line)
                     
                     fun fftRec(x: List<TValue4.TComplex>): List<TValue4.TComplex> {
-                        val n = x.size
-                        if (n == 1) return x
+                        val local_n = x.size
+                        if (local_n == 1) return x
                         val even = fftRec(x.filterIndexed { i, _ -> i % 2 == 0 })
                         val odd = fftRec(x.filterIndexed { i, _ -> i % 2 == 1 })
-                        val result = MutableList<TValue4.TComplex>(n) { TValue4.TComplex(0.0, 0.0) }
-                        val ang = -2 * PI / n
+                        val result = MutableList<TValue4.TComplex>(local_n) { TValue4.TComplex(0.0, 0.0) }
+                        val ang = -2 * PI / local_n
                         val wlen = TValue4.TComplex(cos(ang), sin(ang))
                         var w = TValue4.TComplex(1.0, 0.0)
-                        for (i in 0 until n / 2) {
+                        for (i in 0 until local_n / 2) {
                             val evenVal = even[i]
                             val oddVal = odd[i]
                             val wOdd = TValue4.TComplex(w.re * oddVal.re - w.im * oddVal.im, w.re * oddVal.im + w.im * oddVal.re)
                             result[i] = TValue4.TComplex(evenVal.re + wOdd.re, evenVal.im + wOdd.im)
-                            result[i + n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
+                            result[i + local_n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
                             w = TValue4.TComplex(w.re * wlen.re - w.im * wlen.im, w.re * wlen.im + w.im * wlen.re)
                         }
                         return result
@@ -1475,7 +1474,7 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 "type_of" -> {
-                    val typeStr = when (val arg = args[0]) {
+                    val typeStr = when (args[0]) {
                         is TValue4.TNum -> "num"
                         is TValue4.TInt -> "int"
                         is TValue4.TStr -> "str"
@@ -1488,7 +1487,6 @@ class Evaluator4(private val context: Context) {
                         is TValue4.TBigInt -> "bigint"
                         is TValue4.TRational -> "rational"
                         is TValue4.TPoly -> "poly"
-                        else -> "unknown"
                     }
                     TValue4.TStr(typeStr)
                 }
@@ -1820,7 +1818,7 @@ class Evaluator4(private val context: Context) {
                             return result
                         }
                         val listsOfItems = arrays.map { if (it is TValue4.TArray) it.items else listOf(it) }
-                        val result = cartesian(listsOfItems).map { TValue4.TArray(it.toMutableList()) as TValue4 }
+                        val result = cartesian(listsOfItems).map { TValue4.TArray(it.toMutableList()) }
                         TValue4.TArray(result.toMutableList())
                     }
                 }
