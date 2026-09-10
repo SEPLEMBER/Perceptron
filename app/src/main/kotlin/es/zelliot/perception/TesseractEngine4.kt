@@ -180,7 +180,7 @@ class Lexer4(private val source: String) {
             if (currentChar() == '\\') { advance(); when (currentChar()) { 'n' -> sb.append('\n'); 't' -> sb.append('\t'); 'r' -> sb.append('\r'); '\\' -> sb.append('\\'); '"' -> sb.append('"'); else -> sb.append(currentChar()) } } else sb.append(currentChar())
             advance()
         }
-        addToken(TokenType4.STRING, sb.toString()); if (pos < source.length && currentChar() == '"') advance()
+        addToken(TokenType4.STRING, sb.toString()); if (pos < source.length && currentChar() == '"") advance()
     }
 
     private fun readIdentifier() { 
@@ -188,7 +188,6 @@ class Lexer4(private val source: String) {
         var word = source.substring(start, pos).replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X')
         if (word == "ate") throw TesseractError4("Typo: 'ate'", line)
         
-        // ИСПРАВЛЕНИЕ 1: Добавлено "let" в список ключевых слов deklarации переменных
         val type = when (word.lowercase()) { 
             "fn" -> TokenType4.FN; "val", "var", "let" -> TokenType4.VAL; "const" -> TokenType4.CONST; "return" -> TokenType4.RETURN; "assert" -> TokenType4.ASSERT; 
             "if" -> TokenType4.IF; "then" -> TokenType4.THEN; "else" -> TokenType4.ELSE; "while" -> TokenType4.WHILE; "do" -> TokenType4.DO; "for" -> TokenType4.FOR; 
@@ -602,7 +601,6 @@ class Evaluator4(private val context: Context) {
         }
 
         return when (node.op) {
-            // ИСПРАВЛЕНИЕ 2: Добавлена поддержка конкатенации массивов через оператор +
             TokenType4.PLUS -> {
                 if (left is TValue4.TStr || right is TValue4.TStr) {
                     TValue4.TStr(left.displayString() + right.displayString())
@@ -658,6 +656,17 @@ class Evaluator4(private val context: Context) {
         val args = node.args.map { eval(it) }
         val result = try {
             when (node.name) {
+                // ДОБАВЛЕНО: assert как встроенная функция для надежной работы
+                "assert" -> {
+                    if (args.isEmpty()) throw TesseractError4("assert requires at least 1 argument", node.line)
+                    val cond = args[0]
+                    if (!cond.toBoolean()) {
+                        val msg = if (args.size > 1) args[1].displayString() else "Condition evaluated to false"
+                        throw TesseractError4("Assertion failed: $msg", node.line, callStack.toList())
+                    }
+                    TValue4.TNull
+                }
+                
                 "print" -> { results.add(args.joinToString(" ") { it.displayString() }); TValue4.TNull }
                 
                 "real", "re" -> TValue4.TNum((args[0] as? TValue4.TComplex)?.re ?: throw TesseractError4("re requires complex", node.line))
@@ -1487,7 +1496,6 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
-                // ИСПРАВЛЕНИЕ 3: Добавлена функция append для удобного добавления элементов в массив
                 "append" -> {
                     val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("append требует массив в первом аргументе", node.line)
                     val item = args[1]
@@ -1846,7 +1854,6 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
-                // ТОЧЕЧНЫЙ ПАТЧ: Добавлено .reversed() для корректного порядка коэффициентов (от младшей степени к старшей)
                 "poly" -> TValue4.TPoly(args.map { it.toDouble(node.line) }.reversed())
                 
                 "eval_poly" -> {
