@@ -5,7 +5,6 @@
     android:background="#0A0A0A"
     android:fitsSystemWindows="true">
 
-    <!-- ОСНОВНОЙ КОНТЕНТ (IDE Layout) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -202,14 +201,14 @@
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 2. MAIN EDITOR AREA (С невидимым быстрым скроллом) -->
+        <!-- 2. MAIN EDITOR AREA -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:background="#0A0A0A">
 
-            <!-- Фон Gutter -->
+            <!-- Фон Gutter (визуальный ориентир) -->
             <LinearLayout
                 android:layout_width="24dp"
                 android:layout_height="match_parent"
@@ -222,18 +221,6 @@
                     android:layout_gravity="center_horizontal"
                     android:background="#1F1F1F" />
             </LinearLayout>
-            
-            <!-- НЕВИДИМЫЙ ползунок быстрого скролла (только для touch area) -->
-            <View
-                android:id="@+id/quickScrollThumb"
-                android:layout_width="24dp"
-                android:layout_height="48dp"
-                android:layout_gravity="start|top"
-                android:layout_marginStart="0dp"
-                android:layout_marginTop="0dp"
-                android:background="@android:color/transparent"
-                android:clickable="true"
-                android:focusable="true" />
 
             <!-- Разделитель -->
             <View
@@ -243,7 +230,7 @@
                 android:layout_marginStart="24dp"
                 android:background="#2C2F33" />
 
-            <!-- Поле ввода кода (без скроллбара) -->
+            <!-- Поле ввода кода -->
             <EditText
                 android:id="@+id/etScript"
                 android:layout_width="match_parent"
@@ -267,14 +254,14 @@
                 android:typeface="monospace" />
         </FrameLayout>
 
-        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ -->
+        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ (крупнее) -->
         <LinearLayout
             android:id="@+id/searchPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="#0A0A0A"
-            android:padding="8dp"
+            android:padding="10dp"
             android:visibility="gone"
             android:elevation="8dp">
 
@@ -282,39 +269,39 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="8dp">
+                android:layout_marginBottom="10dp">
 
                 <EditText
                     android:id="@+id/etSearch"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
                     android:background="#0F0F0F"
                     android:textColor="#00E5FF"
                     android:textColorHint="#005F6B"
                     android:hint="Поиск..."
-                    android:textSize="12sp"
+                    android:textSize="14sp"
                     android:fontFamily="monospace"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
                     android:maxLines="1"
                     android:inputType="textNoSuggestions" />
 
                 <EditText
                     android:id="@+id/etReplace"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
                     android:layout_marginStart="4dp"
                     android:background="#0F0F0F"
                     android:textColor="#00E5FF"
                     android:textColorHint="#005F6B"
                     android:hint="Замена..."
-                    android:textSize="12sp"
+                    android:textSize="14sp"
                     android:fontFamily="monospace"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
                     android:maxLines="1"
                     android:inputType="textNoSuggestions" />
             </LinearLayout>
@@ -328,20 +315,21 @@
                 <Button 
                     android:id="@+id/btnSearchPrev" 
                     android:layout_width="0dp" 
-                    android:layout_height="36dp" 
+                    android:layout_height="42dp" 
                     android:layout_weight="1" 
                     android:layout_marginEnd="2dp"
                     android:text="&lt;" 
                     android:textColor="#00E5FF" 
                     android:backgroundTint="#0A0A0A"
                     android:fontFamily="monospace" 
+                    android:textSize="16sp"
                     android:textStyle="bold" 
                     style="?android:attr/borderlessButtonStyle" />
 
                 <Button 
                     android:id="@+id/btnSearchNext" 
                     android:layout_width="0dp" 
-                    android:layout_height="36dp" 
+                    android:layout_height="42dp" 
                     android:layout_weight="1" 
                     android:layout_marginStart="2dp" 
                     android:layout_marginEnd="4dp"
@@ -349,34 +337,35 @@
                     android:textColor="#00E5FF" 
                     android:backgroundTint="#0A0A0A"
                     android:fontFamily="monospace" 
+                    android:textSize="16sp"
                     android:textStyle="bold" 
                     style="?android:attr/borderlessButtonStyle" />
 
                 <Button 
                     android:id="@+id/btnReplaceOne" 
                     android:layout_width="0dp" 
-                    android:layout_height="36dp" 
+                    android:layout_height="42dp" 
                     android:layout_weight="2" 
                     android:layout_marginEnd="2dp"
                     android:text="ONE" 
                     android:textColor="#00E5FF" 
                     android:backgroundTint="#0A0A0A"
                     android:fontFamily="monospace" 
-                    android:textSize="11sp" 
+                    android:textSize="13sp" 
                     android:letterSpacing="0.1" 
                     style="?android:attr/borderlessButtonStyle" />
 
                 <Button 
                     android:id="@+id/btnReplaceAll" 
                     android:layout_width="0dp" 
-                    android:layout_height="36dp" 
+                    android:layout_height="42dp" 
                     android:layout_weight="2" 
                     android:layout_marginStart="2dp"
                     android:text="ALL" 
                     android:textColor="#00E5FF" 
                     android:backgroundTint="#0A0A0A"
                     android:fontFamily="monospace" 
-                    android:textSize="11sp" 
+                    android:textSize="13sp" 
                     android:letterSpacing="0.1" 
                     style="?android:attr/borderlessButtonStyle" />
             </LinearLayout>
@@ -480,6 +469,7 @@
         android:focusable="true" />
 
     <FrameLayout
+        android:id="@+id/resultContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"
@@ -550,7 +540,7 @@
                 android:minHeight="150dp"
                 android:maxHeight="400dp"
                 android:scrollbars="vertical"
-                android:textColor="#EEFFFF"
+                android:textColor="#00E5FF"
                 android:fontFamily="monospace"
                 android:textSize="14sp"
                 android:lineSpacingExtra="4dp"
@@ -561,20 +551,59 @@
                 android:textIsSelectable="true"
                 android:scrollbarThumbVertical="@android:color/darker_gray" />
 
-            <Button
-                android:id="@+id/btnCloseResult"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="20dp"
-                android:text="@string/btn_close"
-                android:textColor="#A9B7C6"
-                android:backgroundTint="#1E1E1E"
-                android:fontFamily="monospace"
-                android:textSize="12sp"
-                android:textAllCaps="false"
-                android:letterSpacing="0.1"
-                style="?android:attr/borderlessButtonStyle"
-                android:stateListAnimator="@null" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="20dp">
+
+                <Button
+                    android:id="@+id/btnCopyResult"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="Копировать"
+                    android:textColor="#A9B7C6"
+                    android:backgroundTint="#1E1E1E"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:letterSpacing="0.05"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:stateListAnimator="@null" />
+
+                <Button
+                    android:id="@+id/btnExpandResult"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="Расширить"
+                    android:textColor="#A9B7C6"
+                    android:backgroundTint="#1E1E1E"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:letterSpacing="0.05"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:stateListAnimator="@null" />
+
+                <Button
+                    android:id="@+id/btnCloseResult"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="Закрыть"
+                    android:textColor="#A9B7C6"
+                    android:backgroundTint="#1E1E1E"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:letterSpacing="0.05"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:stateListAnimator="@null" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>
