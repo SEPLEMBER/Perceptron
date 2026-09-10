@@ -1846,7 +1846,8 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
-                "poly" -> TValue4.TPoly(args.map { it.toDouble(node.line) })
+                // ТОЧЕЧНЫЙ ПАТЧ: Добавлено .reversed() для корректного порядка коэффициентов (от младшей степени к старшей)
+                "poly" -> TValue4.TPoly(args.map { it.toDouble(node.line) }.reversed())
                 
                 "eval_poly" -> {
                     val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("eval_poly requires poly", node.line)
