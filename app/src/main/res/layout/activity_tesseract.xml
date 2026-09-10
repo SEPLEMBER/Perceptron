@@ -24,7 +24,6 @@
             android:paddingEnd="8dp"
             android:elevation="4dp">
 
-            <!-- Бренд / Заголовок (Neon Cyan с эффектом свечения) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -40,14 +39,12 @@
                 android:shadowDy="0"
                 android:shadowRadius="6" />
 
-            <!-- Вертикальный разделитель -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="24dp"
                 android:background="#2C2F33"
                 android:layout_marginEnd="8dp" />
 
-            <!-- Скроллируемая панель кнопок -->
             <HorizontalScrollView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -65,7 +62,6 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <!-- Очистить (Теперь красный, как Stop/Exit) -->
                     <Button 
                         android:id="@+id/btnClear" 
                         android:layout_width="wrap_content" 
@@ -88,7 +84,6 @@
                         android:shadowDy="0"
                         android:shadowRadius="3" />
                         
-                    <!-- Выполнить (Яркий неоновый зеленый) -->
                     <Button 
                         android:id="@+id/btnExecute" 
                         android:layout_width="wrap_content" 
@@ -112,7 +107,6 @@
                         android:shadowDy="0"
                         android:shadowRadius="4" />
                         
-                    <!-- Стоп (Яркий неоновый красный) -->
                     <Button 
                         android:id="@+id/btnStop" 
                         android:layout_width="wrap_content" 
@@ -135,7 +129,6 @@
                         android:shadowDy="0"
                         android:shadowRadius="3" />
 
-                    <!-- Разделитель групп кнопок -->
                     <View
                         android:layout_width="1dp"
                         android:layout_height="20dp"
@@ -179,7 +172,6 @@
                         style="?android:attr/borderlessButtonStyle"
                         android:stateListAnimator="@null" />
 
-                    <!-- Выход (Яркий неоновый красный) -->
                     <Button 
                         android:id="@+id/btnExit" 
                         android:layout_width="wrap_content" 
@@ -205,37 +197,57 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Тонкая граница под тулбаром -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 2. MAIN EDITOR AREA (Рабочая область) -->
-        <LinearLayout
+        <!-- 2. MAIN EDITOR AREA (С кастомным левым скроллом) -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:orientation="horizontal"
             android:background="#0A0A0A">
 
-            <!-- Имитация Gutter (поля для номеров строк) -->
-            <View
-                android:layout_width="4dp"
+            <!-- Фон Gutter -->
+            <LinearLayout
+                android:layout_width="12dp"
                 android:layout_height="match_parent"
-                android:background="#0A0A0A" />
+                android:layout_gravity="start"
+                android:orientation="vertical"
+                android:background="#0A0A0A">
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center_horizontal"
+                    android:background="#1F1F1F" />
+            </LinearLayout>
             
+            <!-- Ползунок быстрого скролла (Neon Cyan) -->
+            <View
+                android:id="@+id/quickScrollThumb"
+                android:layout_width="8dp"
+                android:layout_height="40dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="2dp"
+                android:layout_marginTop="0dp"
+                android:background="#00E5FF"
+                android:elevation="4dp" />
+
+            <!-- Разделитель -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
+                android:layout_gravity="start"
+                android:layout_marginStart="12dp"
                 android:background="#2C2F33" />
 
             <!-- Поле ввода кода -->
             <EditText
                 android:id="@+id/etScript"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_marginStart="13dp"
                 android:background="#0F0F0F"
                 android:textColor="#EEFFFF"
                 android:textColorHint="#4A4A4A"
@@ -253,6 +265,121 @@
                 android:fadeScrollbars="false"
                 android:scrollbarThumbVertical="@android:color/darker_gray"
                 android:typeface="monospace" />
+        </FrameLayout>
+
+        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ (Скрыта по умолчанию) -->
+        <LinearLayout
+            android:id="@+id/searchPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#0A0A0A"
+            android:padding="8dp"
+            android:visibility="gone"
+            android:elevation="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <EditText
+                    android:id="@+id/etSearch"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:background="#0F0F0F"
+                    android:textColor="#00E5FF"
+                    android:textColorHint="#005F6B"
+                    android:hint="Поиск..."
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:maxLines="1"
+                    android:inputType="textNoSuggestions" />
+
+                <EditText
+                    android:id="@+id/etReplace"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:background="#0F0F0F"
+                    android:textColor="#00E5FF"
+                    android:textColorHint="#005F6B"
+                    android:hint="Замена..."
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:maxLines="1"
+                    android:inputType="textNoSuggestions" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <Button 
+                    android:id="@+id/btnSearchPrev" 
+                    android:layout_width="0dp" 
+                    android:layout_height="36dp" 
+                    android:layout_weight="1" 
+                    android:layout_marginEnd="2dp"
+                    android:text="&lt;" 
+                    android:textColor="#00E5FF" 
+                    android:backgroundTint="#0A0A0A"
+                    android:fontFamily="monospace" 
+                    android:textStyle="bold" 
+                    style="?android:attr/borderlessButtonStyle" />
+
+                <Button 
+                    android:id="@+id/btnSearchNext" 
+                    android:layout_width="0dp" 
+                    android:layout_height="36dp" 
+                    android:layout_weight="1" 
+                    android:layout_marginStart="2dp" 
+                    android:layout_marginEnd="4dp"
+                    android:text="&gt;" 
+                    android:textColor="#00E5FF" 
+                    android:backgroundTint="#0A0A0A"
+                    android:fontFamily="monospace" 
+                    android:textStyle="bold" 
+                    style="?android:attr/borderlessButtonStyle" />
+
+                <Button 
+                    android:id="@+id/btnReplaceOne" 
+                    android:layout_width="0dp" 
+                    android:layout_height="36dp" 
+                    android:layout_weight="2" 
+                    android:layout_marginEnd="2dp"
+                    android:text="ONE" 
+                    android:textColor="#00E5FF" 
+                    android:backgroundTint="#0A0A0A"
+                    android:fontFamily="monospace" 
+                    android:textSize="11sp" 
+                    android:letterSpacing="0.1" 
+                    style="?android:attr/borderlessButtonStyle" />
+
+                <Button 
+                    android:id="@+id/btnReplaceAll" 
+                    android:layout_width="0dp" 
+                    android:layout_height="36dp" 
+                    android:layout_weight="2" 
+                    android:layout_marginStart="2dp"
+                    android:text="ALL" 
+                    android:textColor="#00E5FF" 
+                    android:backgroundTint="#0A0A0A"
+                    android:fontFamily="monospace" 
+                    android:textSize="11sp" 
+                    android:letterSpacing="0.1" 
+                    style="?android:attr/borderlessButtonStyle" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Тонкая граница над статус-баром -->
@@ -261,7 +388,7 @@
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 3. STATUS BAR (Нижняя информационная панель IDE - Neon Cyan) -->
+        <!-- 4. STATUS BAR -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="32dp"
@@ -342,7 +469,6 @@
                 android:shadowDy="0"
                 android:shadowRadius="2" />
         </LinearLayout>
-
     </LinearLayout>
 
     <!-- СЛОЙ ЗАТЕМНЕНИЯ -->
@@ -355,7 +481,7 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- ОВЕРЛЕЙ РЕЗУЛЬТАТОВ (Модальное окно консоли) -->
+    <!-- ОВЕРЛЕЙ РЕЗУЛЬТАТОВ -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -377,7 +503,6 @@
             android:outlineProvider="background"
             android:clipToOutline="true">
             
-            <!-- Заголовок оверлея -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -421,7 +546,6 @@
                     android:shadowRadius="2" />
             </LinearLayout>
 
-            <!-- Содержимое консоли -->
             <TextView
                 android:id="@+id/tvResultContent"
                 android:layout_width="match_parent"
@@ -440,7 +564,6 @@
                 android:textIsSelectable="true"
                 android:scrollbarThumbVertical="@android:color/darker_gray" />
 
-            <!-- Кнопка закрытия -->
             <Button
                 android:id="@+id/btnCloseResult"
                 android:layout_width="match_parent"
@@ -457,5 +580,4 @@
                 android:stateListAnimator="@null" />
         </LinearLayout>
     </FrameLayout>
-
 </FrameLayout>
