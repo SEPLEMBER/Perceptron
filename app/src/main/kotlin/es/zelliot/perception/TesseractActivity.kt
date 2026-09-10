@@ -55,7 +55,6 @@ class TesseractActivity : AppCompatActivity() {
     private var currentMatchIndex = -1
     private var searchDebounceJob: Job? = null
     
-    // Переменные для расширения результата
     private var isResultExpanded = false
     private var savedMaxHeight = 0
 
@@ -191,7 +190,6 @@ class TesseractActivity : AppCompatActivity() {
         binding.tvResultContent.text = spannableText
         binding.tvResultContent.scrollTo(0, 0)
         
-        // Сбрасываем состояние расширения
         if (isResultExpanded) {
             collapseResult()
         }
@@ -257,20 +255,16 @@ class TesseractActivity : AppCompatActivity() {
     }
     
     private fun expandResult() {
-        // Сохраняем текущий maxHeight
         savedMaxHeight = binding.tvResultContent.maxHeight
         
-        // Убираем padding у контейнера
         binding.resultContainer.setPadding(0, 0, 0, 0)
         
-        // Расширяем overlayResult
         val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
         params.width = FrameLayout.LayoutParams.MATCH_PARENT
         params.height = FrameLayout.LayoutParams.MATCH_PARENT
         params.gravity = android.view.Gravity.NO_GRAVITY
         binding.overlayResult.layoutParams = params
         
-        // Убираем maxHeight и делаем TextView расширяемым
         binding.tvResultContent.maxHeight = Int.MAX_VALUE
         
         binding.btnExpandResult.text = "Уменьшить"
@@ -278,18 +272,15 @@ class TesseractActivity : AppCompatActivity() {
     }
     
     private fun collapseResult() {
-        // Восстанавливаем padding контейнера
         val paddingPx = (24 * resources.displayMetrics.density).toInt()
         binding.resultContainer.setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
         
-        // Восстанавливаем параметры overlayResult
         val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
         params.width = FrameLayout.LayoutParams.MATCH_PARENT
         params.height = FrameLayout.LayoutParams.WRAP_CONTENT
         params.gravity = android.view.Gravity.CENTER
         binding.overlayResult.layoutParams = params
         
-        // Восстанавливаем maxHeight
         binding.tvResultContent.maxHeight = savedMaxHeight
         
         binding.btnExpandResult.text = "Расширить"
@@ -335,14 +326,14 @@ class TesseractActivity : AppCompatActivity() {
 
         for (const in constants) {
             val tv = TextView(this).apply {
-                text = const.name; setTextColor(Color.parseColor("#FFAA00")); textSize = 16f
+                text = const.name; setTextColor(Color.parseColor("#C792EA")); textSize = 16f
                 setTypeface(null, android.graphics.Typeface.BOLD)
             }
             val et = EditText(this).apply {
                 setText(const.defaultValue.toString())
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
                 setTextColor(Color.parseColor("#00E676")); setHintTextColor(Color.GRAY)
-                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFAA00"))
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#C792EA"))
                 setLongClickable(false); setTextIsSelectable(false)
                 val actionModeCallback = object : ActionMode.Callback {
                     override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
@@ -395,7 +386,7 @@ class TesseractActivity : AppCompatActivity() {
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 20) }
         val etTitle = EditText(this).apply {
             hint = getString(R.string.hint_shortcut_name); setTextColor(Color.parseColor("#00E676")); setHintTextColor(Color.GRAY)
-            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFAA00"))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#C792EA"))
             setLongClickable(false); setTextIsSelectable(false)
             val actionModeCallback = object : ActionMode.Callback {
                 override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
