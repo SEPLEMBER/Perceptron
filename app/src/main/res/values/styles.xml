@@ -4,35 +4,28 @@
     <!-- БАЗОВАЯ ТЕМА ПРИЛОЖЕНИЯ                                              -->
     <!-- ==================================================================== -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Тёмный фон для всего приложения -->
         <item name="android:windowBackground">#0A0A0A</item>
         <item name="android:colorBackground">#0A0A0A</item>
         
-        <!-- Цвет текста по умолчанию (светлый, чтобы не был чёрным на тёмном фоне) -->
         <item name="android:textColor">#EEFFFF</item>
         <item name="android:textColorHint">#546E7A</item>
         
-        <!-- Цвет акцента (NEON CYAN - используется для курсора, выделения текста, переключателей) -->
         <item name="colorAccent">#00E5FF</item>
         <item name="colorPrimary">#00E5FF</item>
         <item name="colorPrimaryDark">#0A0A0A</item>
 
-        <!-- Отключаем стандартное светлое выделение при долгом нажатии (Neon Cyan tint) -->
         <item name="android:colorLongPressedHighlight">#3300E5FF</item>
         <item name="android:colorActivatedHighlight">#3300E5FF</item>
         
-        <!-- Цвет выделения текста (Neon Cyan с прозрачностью) -->
         <item name="android:textColorHighlight">#4400E5FF</item>
         
-        <!-- Цвет курсора (Neon Cyan) -->
         <item name="android:textCursorDrawable">@null</item>
         
-        <!-- Цвет ripple-эффекта при нажатии (Neon Cyan) -->
         <item name="colorControlHighlight">#4400E5FF</item>
     </style>
 
     <!-- ==================================================================== -->
-    <!-- ПРОЗРАЧНАЯ ТЕМА (для Settings или оверлейных активностей)            -->
+    <!-- ПРОЗРАЧНАЯ ТЕМА                                                      -->
     <!-- ==================================================================== -->
     <style name="AppTheme.Transparent" parent="AppTheme">
         <item name="android:windowIsTranslucent">true</item>
@@ -43,50 +36,43 @@
     </style>
 
     <!-- ==================================================================== -->
-    <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ (Используется в TesseractActivity.kt)       -->
+    <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ                                             -->
     <!-- ==================================================================== -->
     <style name="DarkDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
-        <!-- Фон диалога (чуть светлее основного фона для контраста) -->
-        <item name="android:windowBackground">#1C1C1C</item>
+        <!-- Фон диалога: чуть темнее, но светлее 0A0A0A -->
+        <item name="android:windowBackground">#141414</item>
         
-        <!-- Цвета текста внутри диалога -->
         <item name="android:textColorPrimary">#EEFFFF</item>
-        <!-- NEON GREEN для вторичного текста -->
         <item name="android:textColorSecondary">#A8FF60</item>
         
-        <!-- Цвет акцента (NEON CYAN - подчёркивание EditText, активные элементы) -->
         <item name="colorAccent">#00E5FF</item>
         <item name="colorControlActivated">#00E5FF</item>
         <item name="colorControlNormal">#546E7A</item>
         
-        <!-- Цвет выделения текста в диалогах (Neon Cyan) -->
         <item name="android:textColorHighlight">#4400E5FF</item>
         
-        <!-- Цвет ripple-эффекта в диалогах (Neon Cyan) -->
         <item name="colorControlHighlight">#4400E5FF</item>
 
-        <!-- Стили для кнопок диалога (Да/Отмена) -->
         <item name="buttonBarPositiveButtonStyle">@style/DarkDialogButton.Positive</item>
         <item name="buttonBarNegativeButtonStyle">@style/DarkDialogButton.Negative</item>
         <item name="buttonBarNeutralButtonStyle">@style/DarkDialogButton.Neutral</item>
         
-        <!-- Цвет заголовка диалога (Neon Cyan) -->
         <item name="android:textColorAlertDialogListItem">#EEFFFF</item>
     </style>
 
-    <!-- Стиль кнопок внутри тёмного диалога - ПОЛОЖИТЕЛЬНАЯ (NEON GREEN) -->
+    <!-- Положительная кнопка: ФИОЛЕТОВЫЙ (цвет val/var/const) -->
     <style name="DarkDialogButton.Positive" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
-        <item name="android:textColor">#A8FF60</item>
+        <item name="android:textColor">#C792EA</item>
         <item name="android:textStyle">bold</item>
     </style>
 
-    <!-- Стиль кнопок внутри тёмного диалога - ОТРИЦАТЕЛЬНАЯ (NEON RED) -->
+    <!-- Отрицательная кнопка: ПРИГЛУШЕННЫЙ КОРИЧНЕВЫЙ (холодный тон) -->
     <style name="DarkDialogButton.Negative" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
-        <item name="android:textColor">#FF3355</item>
+        <item name="android:textColor">#7A6652</item>
         <item name="android:textStyle">bold</item>
     </style>
 
-    <!-- Стиль кнопок внутри тёмного диалога - НЕЙТРАЛЬНАЯ (NEON CYAN) -->
+    <!-- Нейтральная кнопка -->
     <style name="DarkDialogButton.Neutral" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
         <item name="android:textColor">#00E5FF</item>
         <item name="android:textStyle">bold</item>
@@ -106,21 +92,20 @@
     <color name="neon_cyan">#00E5FF</color>
     <color name="neon_green">#A8FF60</color>
     <color name="neon_red">#FF3355</color>
+    <color name="neon_purple">#C792EA</color>
+    <color name="brown_muted">#7A6652</color>
     <color name="neon_cyan_transparent">#4400E5FF</color>
     <color name="neon_green_transparent">#44A8FF60</color>
     <color name="neon_red_transparent">#44FF3355</color>
     
-    <!-- Фоны -->
     <color name="background_primary">#0A0A0A</color>
     <color name="background_secondary">#0F0F0F</color>
-    <color name="background_dialog">#1C1C1C</color>
+    <color name="background_dialog">#141414</color>
     <color name="background_statusbar">#151515</color>
     
-    <!-- Разделители -->
     <color name="divider_subtle">#1F1F1F</color>
     <color name="divider_normal">#2C2F33</color>
     
-    <!-- Текст -->
     <color name="text_primary">#EEFFFF</color>
     <color name="text_secondary">#A9B7C6</color>
     <color name="text_hint">#4A4A4A</color>
