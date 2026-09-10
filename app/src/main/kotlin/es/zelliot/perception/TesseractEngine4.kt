@@ -82,9 +82,25 @@ sealed class TValue4 {
         is TMatrix -> "Matrix(${rows}x${cols})"
         is TRational -> if (den == BigInteger.ONE) num.toString() else "${num}/${den}"
         is TPoly -> { 
-            if (coeffs.isEmpty()) "0" else coeffs.mapIndexed { i, c -> 
-                if (c == 0.0) null else if (i == 0) c.toString() else if (i == 1) "${c}x" else "${c}x^$i" 
-            }.filterNotNull().reversed().joinToString(" + ").ifEmpty { "0" } 
+            if (coeffs.isEmpty()) "0"
+            else {
+                val terms = mutableListOf<String>()
+                for (i in coeffs.indices.reversed()) {
+                    val c = coeffs[i]
+                    if (c == 0.0) continue
+                    val absC = abs(c)
+                    val sign = if (c < 0) " - " else if (terms.isEmpty()) "" else " + "
+                    val coefStr = if (absC % 1.0 == 0.0 && absC < 1e15) absC.toLong().toString() else absC.toString()
+                    
+                    val term = when (i) {
+                        0 -> "$sign$coefStr"
+                        1 -> "$sign${if (absC == 1.0) "" else coefStr}x"
+                        else -> "$sign${if (absC == 1.0) "" else coefStr}x^$i"
+                    }
+                    terms.add(term)
+                }
+                if (terms.isEmpty()) "0" else terms.joinToString("")
+            }
         }
         is TArray -> { 
             val itemsStr = items.joinToString(", ") { it.displayString() }
@@ -401,92 +417,69 @@ class Evaluator4(private val context: Context) {
         }
     }
 
+    private fun getRationalParts(v: TValue4): Pair<BigInteger, BigInteger>? = when(v) {
+        is TValue4.TInt -> Pair(BigInteger.valueOf(v.value), BigInteger.ONE)
+        is TValue4.TBigInt -> Pair(v.value, BigInteger.ONE)
+        is TValue4.TRational -> Pair(v.num, v.den)
+        is TValue4.TNum -> {
+            if (v.value.isNaN() || v.value.isInfinite()) null
+            else if (v.value % 1.0 == 0.0 && abs(v.value) < 1e15) Pair(BigInteger.valueOf(v.value.toLong()), BigInteger.ONE)
+            else {
+                val bd = BigDecimal.valueOf(v.value)
+                Pair(bd.unscaledValue(), BigInteger.TEN.pow(bd.scale()))
+            }
+        }
+        else -> null
+    }
+
+    private fun valuesEqual(l: TValue4, r: TValue4, line: Int): Boolean {
+        if (l is TValue4.TComplex && r !is TValue4.TComplex) {
+            if (l.im != 0.0) return false
+            return valuesEqual(TValue4.TNum(l.re), r, line)
+        }
+        if (r is TValue4.TComplex && l !is TValue4.TComplex) {
+            if (r.im != 0.0) return false
+            return valuesEqual(l, TValue4.TNum(r.re), line)
+        }
+
+        val ratL = getRationalParts(l)
+        val ratR = getRationalParts(r)
+        if (ratL != null && ratR != null) {
+            return ratL.first * ratR.second == ratR.first * ratL.second
+        }
+
+        if (l::class != r::class) return false
+        
+        return when (l) {
+            is TValue4.TStr -> l.value == (r as TValue4.TStr).value
+            is TValue4.TBool -> l.value == (r as TValue4.TBool).value
+            is TValue4.TNull -> true
+            is TValue4.TComplex -> l.re == (r as TValue4.TComplex).re && l.im == r.im
+            is TValue4.TMatrix -> l.rows == r.rows && l.cols == r.cols && l.data.contentEquals(r.data)
+            is TValue4.TArray -> {
+                if (l.items.size != r.items.size) false
+                else l.items.indices.all { valuesEqual(l.items[it], r.items[it], line) }
+            }
+            is TValue4.TFunction -> false 
+            is TValue4.TPoly -> l.coeffs == r.coeffs
+            else -> false 
+        }
+    }
+
     private fun evalBinaryOp(node: Expr4.BinaryOp): TValue4 {
         val left = eval(node.left); val right = eval(node.right)
         
-        // 🔥 ИСПРАВЛЕНО: Строковая конкатенация имеет высший приоритет над математикой BigInt/Rational
         if (node.op == TokenType4.PLUS && (left is TValue4.TStr || right is TValue4.TStr)) {
             return TValue4.TStr(left.displayString() + right.displayString())
         }
 
         if (node.op == TokenType4.AND) return TValue4.TBool(left.toBoolean() && right.toBoolean())
         if (node.op == TokenType4.OR) return TValue4.TBool(left.toBoolean() || right.toBoolean())
+        
         if (node.op in listOf(TokenType4.GT, TokenType4.LT, TokenType4.GTE, TokenType4.LTE, TokenType4.EQ, TokenType4.NEQ)) {
             val res = when (node.op) {
-                TokenType4.EQ -> {
-                    when {
-                        left is TValue4.TStr && right is TValue4.TStr -> left.value == right.value
-                        left is TValue4.TBool && right is TValue4.TBool -> left.value == right.value
-                        left is TValue4.TInt && right is TValue4.TInt -> left.value == right.value
-                        left is TValue4.TNum && right is TValue4.TNum -> abs(left.value - right.value) < 1e-9
-                        left is TValue4.TInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) < 1e-9
-                        left is TValue4.TNum && right is TValue4.TInt -> abs(left.value - right.value.toDouble()) < 1e-9
-                        left is TValue4.TNull && right is TValue4.TNull -> true
-                        left is TValue4.TNull || right is TValue4.TNull -> false
-                        left is TValue4.TArray && right is TValue4.TArray -> {
-                            if (left.items.size != right.items.size) false
-                            else {
-                                var eq = true
-                                for (i in left.items.indices) {
-                                    if (left.items[i].displayString() != right.items[i].displayString()) {
-                                        eq = false
-                                        break
-                                    }
-                                }
-                                eq
-                            }
-                        }
-                        left is TValue4.TArray || right is TValue4.TArray -> false
-                        left is TValue4.TFunction && right is TValue4.TFunction -> false
-                        left is TValue4.TRational && right is TValue4.TRational -> left.num * right.den == right.num * left.den
-                        left is TValue4.TRational && right is TValue4.TInt -> left.num == right.value.toBigInteger() * left.den
-                        left is TValue4.TInt && right is TValue4.TRational -> right.num == left.value.toBigInteger() * right.den
-                        left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) < 1e-9
-                        left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) < 1e-9
-                        left is TValue4.TBigInt && right is TValue4.TInt -> left.value == right.value.toBigInteger()
-                        left is TValue4.TInt && right is TValue4.TBigInt -> left.value.toBigInteger() == right.value
-                        left is TValue4.TBigInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) < 1e-9
-                        left is TValue4.TNum && right is TValue4.TBigInt -> abs(left.value - right.value.toDouble()) < 1e-9
-                        else -> left.displayString() == right.displayString()
-                    }
-                }
-                TokenType4.NEQ -> {
-                    when {
-                        left is TValue4.TStr && right is TValue4.TStr -> left.value != right.value
-                        left is TValue4.TBool && right is TValue4.TBool -> left.value != right.value
-                        left is TValue4.TInt && right is TValue4.TInt -> left.value != right.value
-                        left is TValue4.TNum && right is TValue4.TNum -> abs(left.value - right.value) >= 1e-9
-                        left is TValue4.TInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) >= 1e-9
-                        left is TValue4.TNum && right is TValue4.TInt -> abs(left.value - right.value.toDouble()) >= 1e-9
-                        left is TValue4.TNull && right is TValue4.TNull -> false
-                        left is TValue4.TNull || right is TValue4.TNull -> true
-                        left is TValue4.TArray && right is TValue4.TArray -> {
-                            if (left.items.size != right.items.size) true
-                            else {
-                                var eq = true
-                                for (i in left.items.indices) {
-                                    if (left.items[i].displayString() != right.items[i].displayString()) {
-                                        eq = false
-                                        break
-                                    }
-                                }
-                                !eq
-                            }
-                        }
-                        left is TValue4.TArray || right is TValue4.TArray -> true
-                        left is TValue4.TFunction && right is TValue4.TFunction -> true
-                        left is TValue4.TRational && right is TValue4.TRational -> left.num * right.den != right.num * left.den
-                        left is TValue4.TRational && right is TValue4.TInt -> left.num != right.value.toBigInteger() * left.den
-                        left is TValue4.TInt && right is TValue4.TRational -> right.num != left.value.toBigInteger() * right.den
-                        left is TValue4.TRational && right is TValue4.TNum -> abs(left.num.toDouble() / left.den.toDouble() - right.value) >= 1e-9
-                        left is TValue4.TNum && right is TValue4.TRational -> abs(left.value - right.num.toDouble() / right.den.toDouble()) >= 1e-9
-                        left is TValue4.TBigInt && right is TValue4.TInt -> left.value != right.value.toBigInteger()
-                        left is TValue4.TInt && right is TValue4.TBigInt -> left.value.toBigInteger() != right.value
-                        left is TValue4.TBigInt && right is TValue4.TNum -> abs(left.value.toDouble() - right.value) >= 1e-9
-                        left is TValue4.TNum && right is TValue4.TBigInt -> abs(left.value - right.value.toDouble()) >= 1e-9
-                        else -> left.displayString() != right.displayString()
-                    }
-                }
+                TokenType4.EQ -> valuesEqual(left, right, node.line)
+                TokenType4.NEQ -> !valuesEqual(left, right, node.line)
                 TokenType4.GT -> left.toDouble(node.line) > right.toDouble(node.line)
                 TokenType4.LT -> left.toDouble(node.line) < right.toDouble(node.line)
                 TokenType4.GTE -> left.toDouble(node.line) >= right.toDouble(node.line)
@@ -576,6 +569,20 @@ class Evaluator4(private val context: Context) {
                 return TValue4.TMatrix(left.rows, right.cols, res)
             }
         }
+        if (left is TValue4.TMatrix && (right is TValue4.TNum || right is TValue4.TInt || right is TValue4.TBigInt)) {
+            if (node.op == TokenType4.MUL) {
+                val scalar = right.toDouble(node.line)
+                val res = DoubleArray(left.data.size) { left.data[it] * scalar }
+                return TValue4.TMatrix(left.rows, left.cols, res)
+            }
+        }
+        if ((left is TValue4.TNum || left is TValue4.TInt || left is TValue4.TBigInt) && right is TValue4.TMatrix) {
+            if (node.op == TokenType4.MUL) {
+                val scalar = left.toDouble(node.line)
+                val res = DoubleArray(right.data.size) { right.data[it] * scalar }
+                return TValue4.TMatrix(right.rows, right.cols, res)
+            }
+        }
         if (left is TValue4.TMatrix && right is TValue4.TArray) {
             if (node.op == TokenType4.MUL && left.cols == right.items.size) {
                 val res = mutableListOf<TValue4>(); for (i in 0 until left.rows) { var sum = 0.0; for (k in 0 until left.cols) sum += left.data[i * left.cols + k] * right.items[k].toDouble(node.line); res.add(TValue4.TNum(sum)) }; return TValue4.TArray(res)
@@ -598,13 +605,13 @@ class Evaluator4(private val context: Context) {
         }
     }
 
-    private fun solveGauss(a: Array<DoubleArray>, b: DoubleArray): DoubleArray {
+    private fun solveGauss(a: Array<DoubleArray>, b: DoubleArray, line: Int): DoubleArray {
         val n = a.size; val aug = Array(n) { i -> DoubleArray(n + 1) { j -> if (j < n) a[i][j] else b[i] } }
         for (i in 0 until n) {
             var maxEl = abs(aug[i][i]); var maxRow = i
             for (k in i + 1 until n) if (abs(aug[k][i]) > maxEl) { maxEl = abs(aug[k][i]); maxRow = k }
             val temp = aug[maxRow]; aug[maxRow] = aug[i]; aug[i] = temp
-            if (abs(aug[i][i]) < 1e-12) throw TesseractError4("Matrix is singular", 0)
+            if (abs(aug[i][i]) < 1e-12) throw TesseractError4("Matrix is singular", line)
             for (k in i + 1 until n) { val c = -aug[k][i] / aug[i][i]; for (j in i until n + 1) { if (i == j) aug[k][j] = 0.0 else aug[k][j] += c * aug[i][j] } }
         }
         val x = DoubleArray(n); for (i in n - 1 downTo 0) { var sum = 0.0; for (j in i + 1 until n) sum += aug[i][j] * x[j]; x[i] = (aug[i][n] - sum) / aug[i][i] }
@@ -673,8 +680,12 @@ class Evaluator4(private val context: Context) {
                 "rational" -> {
                     val num = BigInteger.valueOf(args[0].toLong(node.line))
                     val den = BigInteger.valueOf(args[1].toLong(node.line))
+                    if (den == BigInteger.ZERO) throw TesseractError4("Division by zero in rational", node.line)
                     val g = num.gcd(den)
-                    TValue4.TRational(num / g, den / g)
+                    var n = num / g
+                    var d = den / g
+                    if (d < BigInteger.ZERO) { n = -n; d = -d }
+                    TValue4.TRational(n, d)
                 }
                 
                 "matrix" -> {
@@ -756,7 +767,7 @@ class Evaluator4(private val context: Context) {
                     val bArr = args[1] as? TValue4.TArray ?: throw TesseractError4("solve requires array", node.line)
                     val a = Array(m.rows) { i -> DoubleArray(m.cols) { j -> m.data[i * m.cols + j] } }
                     val b = DoubleArray(bArr.items.size) { bArr.items[it].toDouble(node.line) }
-                    val x = solveGauss(a, b)
+                    val x = solveGauss(a, b, node.line)
                     TValue4.TArray(x.map { TValue4.TNum(it) }.toMutableList())
                 }
                 
@@ -838,6 +849,7 @@ class Evaluator4(private val context: Context) {
                     val isInt = when (arg) {
                         is TValue4.TInt, is TValue4.TBigInt -> true
                         is TValue4.TNum -> arg.value % 1.0 == 0.0
+                        is TValue4.TRational -> arg.den == BigInteger.ONE
                         else -> false
                     }
                     TValue4.TBool(isInt)
@@ -855,6 +867,10 @@ class Evaluator4(private val context: Context) {
                     var b = args[2].toDouble(node.line)
                     val tol = if (args.size > 3) args[3].toDouble(node.line) else 1e-7
                     var fa = callTFunction(f, listOf(TValue4.TNum(a)), node.line).toDouble(node.line)
+                    val fb = callTFunction(f, listOf(TValue4.TNum(b)), node.line).toDouble(node.line)
+                    
+                    if (fa * fb > 0.0) throw TesseractError4("find_root: f(a) and f(b) must have different signs", node.line)
+                    
                     var resMid = (a + b) / 2.0
                     for (i in 0 until 100) {
                         val mid = (a + b) / 2.0
@@ -1141,24 +1157,25 @@ class Evaluator4(private val context: Context) {
                     TValue4.TArray(arr.items.filter { callTFunction(f, listOf(it), node.line).toBoolean() }.toMutableList())
                 }
                 "reduce" -> {
-                    val a0 = args[0]; val a1 = args[1]; val a2 = args[2]
-                    val arr = when {
-                        a0 is TValue4.TArray -> a0
-                        a1 is TValue4.TArray -> a1
-                        else -> a2 as? TValue4.TArray ?: throw TesseractError4("reduce requires array", node.line)
+                    if (args.size < 2) throw TesseractError4("reduce requires at least 2 arguments", node.line)
+                    val arr = args.firstOrNull { it is TValue4.TArray } as? TValue4.TArray ?: throw TesseractError4("reduce requires array", node.line)
+                    val f = args.firstOrNull { it is TValue4.TFunction } as? TValue4.TFunction ?: throw TesseractError4("reduce requires function", node.line)
+                    
+                    var currentAcc: TValue4
+                    val startIndex: Int
+                    
+                    if (args.size == 2) {
+                        if (arr.items.isEmpty()) throw TesseractError4("reduce of empty array with no initial value", node.line)
+                        currentAcc = arr.items[0]
+                        startIndex = 1
+                    } else {
+                        currentAcc = args.first { it !is TValue4.TArray && it !is TValue4.TFunction }
+                        startIndex = 0
                     }
-                    val f = when {
-                        a0 is TValue4.TFunction -> a0
-                        a1 is TValue4.TFunction -> a1
-                        else -> a2 as? TValue4.TFunction ?: throw TesseractError4("reduce requires function", node.line)
+                    
+                    for (i in startIndex until arr.items.size) {
+                        currentAcc = callTFunction(f, listOf(currentAcc, arr.items[i]), node.line)
                     }
-                    val acc = when {
-                        a0 !is TValue4.TArray && a0 !is TValue4.TFunction -> a0
-                        a1 !is TValue4.TArray && a1 !is TValue4.TFunction -> a1
-                        else -> a2
-                    }
-                    var currentAcc = acc
-                    for (it in arr.items) currentAcc = callTFunction(f, listOf(currentAcc, it), node.line)
                     currentAcc
                 }
                 "remove_at" -> {
@@ -1371,10 +1388,8 @@ class Evaluator4(private val context: Context) {
                     val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("eval_poly requires poly", node.line)
                     val x = args[1].toDouble(node.line)
                     var res = 0.0
-                    var xn = 1.0
-                    for (c in p.coeffs) {
-                        res += c * xn
-                        xn *= x
+                    for (i in p.coeffs.indices.reversed()) {
+                        res = res * x + p.coeffs[i]
                     }
                     TValue4.TNum(res)
                 }
