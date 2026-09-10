@@ -187,8 +187,10 @@ class Lexer4(private val source: String) {
         val start = pos; while (pos < source.length && (currentChar().isLetterOrDigit() || currentChar() == '_')) advance()
         var word = source.substring(start, pos).replace('а', 'a').replace('А', 'A').replace('в', 'v').replace('В', 'V').replace('е', 'e').replace('Е', 'E').replace('о', 'o').replace('О', 'O').replace('р', 'r').replace('Р', 'R').replace('с', 'c').replace('С', 'C').replace('у', 'y').replace('У', 'Y').replace('х', 'x').replace('Х', 'X')
         if (word == "ate") throw TesseractError4("Typo: 'ate'", line)
+        
+        // ИСПРАВЛЕНИЕ 1: Добавлено "let" в список ключевых слов deklarации переменных
         val type = when (word.lowercase()) { 
-            "fn" -> TokenType4.FN; "val", "var" -> TokenType4.VAL; "const" -> TokenType4.CONST; "return" -> TokenType4.RETURN; "assert" -> TokenType4.ASSERT; 
+            "fn" -> TokenType4.FN; "val", "var", "let" -> TokenType4.VAL; "const" -> TokenType4.CONST; "return" -> TokenType4.RETURN; "assert" -> TokenType4.ASSERT; 
             "if" -> TokenType4.IF; "then" -> TokenType4.THEN; "else" -> TokenType4.ELSE; "while" -> TokenType4.WHILE; "do" -> TokenType4.DO; "for" -> TokenType4.FOR; 
             "in" -> TokenType4.IN; "to" -> TokenType4.TO; "exit" -> TokenType4.EXIT; "and" -> TokenType4.AND; "or" -> TokenType4.OR; "not", "negate" -> TokenType4.NEGATE
             else -> TokenType4.IDENTIFIER 
@@ -600,7 +602,18 @@ class Evaluator4(private val context: Context) {
         }
 
         return when (node.op) {
-            TokenType4.PLUS -> if (left is TValue4.TStr || right is TValue4.TStr) TValue4.TStr(left.displayString() + right.displayString()) else if (left is TValue4.TInt && right is TValue4.TInt) TValue4.TInt(left.value + right.value) else TValue4.TNum(left.toDouble(node.line) + right.toDouble(node.line))
+            // ИСПРАВЛЕНИЕ 2: Добавлена поддержка конкатенации массивов через оператор +
+            TokenType4.PLUS -> {
+                if (left is TValue4.TStr || right is TValue4.TStr) {
+                    TValue4.TStr(left.displayString() + right.displayString())
+                } else if (left is TValue4.TArray && right is TValue4.TArray) {
+                    TValue4.TArray((left.items + right.items).toMutableList())
+                } else if (left is TValue4.TInt && right is TValue4.TInt) {
+                    TValue4.TInt(left.value + right.value)
+                } else {
+                    TValue4.TNum(left.toDouble(node.line) + right.toDouble(node.line))
+                }
+            }
             TokenType4.MINUS -> if (left is TValue4.TInt && right is TValue4.TInt) TValue4.TInt(left.value - right.value) else TValue4.TNum(left.toDouble(node.line) - right.toDouble(node.line))
             TokenType4.MUL -> if (left is TValue4.TInt && right is TValue4.TInt) TValue4.TInt(left.value * right.value) else TValue4.TNum(left.toDouble(node.line) * right.toDouble(node.line))
             TokenType4.DIV -> { MathGuard4.checkDivision(right, node.line); TValue4.TNum(left.toDouble(node.line) / right.toDouble(node.line)) }
@@ -1473,6 +1486,16 @@ class Evaluator4(private val context: Context) {
                         else -> throw TesseractError4("len() requires string or array", node.line)
                     }
                 }
+                
+                // ИСПРАВЛЕНИЕ 3: Добавлена функция append для удобного добавления элементов в массив
+                "append" -> {
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("append требует массив в первом аргументе", node.line)
+                    val item = args[1]
+                    val newArr = TValue4.TArray(arr.items.toMutableList())
+                    newArr.items.add(item)
+                    newArr
+                }
+
                 "type_of" -> {
                     val typeStr = when (args[0]) {
                         is TValue4.TNum -> "num"
