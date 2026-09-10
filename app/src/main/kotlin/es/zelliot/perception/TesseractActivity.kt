@@ -192,7 +192,8 @@ class TesseractActivity : AppCompatActivity() {
 
     private fun hideResult() {
         binding.dimView.animate().alpha(0f).setDuration(150).withEndAction { binding.dimView.visibility = View.GONE }.start()
-        binding.overlayResult.animate().alpha(0f).scaleY(0.95).scaleX(0.95f).setDuration(150).withEndAction {
+        // ИСПРАВЛЕНО: добавлен суффикс 'f' к 0.95 в scaleY
+        binding.overlayResult.animate().alpha(0f).scaleY(0.95f).scaleX(0.95f).setDuration(150).withEndAction {
             binding.overlayResult.visibility = View.GONE
             binding.overlayResult.alpha = 1f
             binding.overlayResult.scaleY = 1f
