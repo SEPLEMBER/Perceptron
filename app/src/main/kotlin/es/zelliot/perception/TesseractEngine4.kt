@@ -687,6 +687,35 @@ class Evaluator4(private val context: Context) {
                 "expand" -> { val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("expand requires poly", node.line); p }
                 "simplify" -> { val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("simplify requires poly", node.line); TValue4.TPoly(p.coeffs.filter { it != 0.0 }.ifEmpty { listOf(0.0) }) }
                 
+                "solve_poly" -> {
+                    val p = args[0] as? TValue4.TPoly ?: throw TesseractError4("solve_poly requires poly", node.line)
+                    when (p.coeffs.size) {
+                        0 -> TValue4.TArray(mutableListOf())
+                        1 -> TValue4.TArray(mutableListOf())
+                        2 -> {
+                            val a = p.coeffs[1]; val b = p.coeffs[0]
+                            if (abs(a) < 1e-15) throw TesseractError4("Not a linear equation", node.line)
+                            TValue4.TArray(mutableListOf(TValue4.TNum(-b / a)))
+                        }
+                        3 -> {
+                            val a = p.coeffs[2]; val b = p.coeffs[1]; val c = p.coeffs[0]
+                            val D = b * b - 4 * a * c
+                            when {
+                                D > 1e-12 -> TValue4.TArray(mutableListOf(
+                                    TValue4.TNum((-b + sqrt(D)) / (2 * a)),
+                                    TValue4.TNum((-b - sqrt(D)) / (2 * a))
+                                ))
+                                D >= -1e-12 -> TValue4.TArray(mutableListOf(TValue4.TNum(-b / (2 * a))))
+                                else -> TValue4.TArray(mutableListOf(
+                                    TValue4.TComplex(-b / (2 * a), sqrt(-D) / (2 * a)),
+                                    TValue4.TComplex(-b / (2 * a), -sqrt(-D) / (2 * a))
+                                ))
+                            }
+                        }
+                        else -> throw TesseractError4("solve_poly supports degree 1 and 2 only", node.line)
+                    }
+                }
+                
                 "rational" -> {
                     val num = BigInteger.valueOf(args[0].toLong(node.line))
                     val den = BigInteger.valueOf(args[1].toLong(node.line))
@@ -700,12 +729,17 @@ class Evaluator4(private val context: Context) {
                 
                 "matrix" -> {
                     val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("matrix requires array", node.line)
+                    if (arr.items.isEmpty()) throw TesseractError4("matrix requires non-empty array", node.line)
                     val rows = arr.items.size
-                    val cols = (arr.items[0] as? TValue4.TArray)?.items?.size ?: throw TesseractError4("matrix requires 2D array", node.line)
+                    val firstRow = arr.items[0] as? TValue4.TArray ?: throw TesseractError4("matrix requires 2D array", node.line)
+                    val cols = firstRow.items.size
+                    if (cols == 0) throw TesseractError4("matrix rows cannot be empty", node.line)
                     val data = DoubleArray(rows * cols)
                     for (i in 0 until rows) {
+                        val row = arr.items[i] as? TValue4.TArray ?: throw TesseractError4("matrix requires 2D array (row $i is not array)", node.line)
+                        if (row.items.size != cols) throw TesseractError4("matrix row $i has ${row.items.size} elements, expected $cols", node.line)
                         for (j in 0 until cols) {
-                            data[i * cols + j] = (arr.items[i] as? TValue4.TArray)?.items?.get(j)?.toDouble(node.line) ?: throw TesseractError4("matrix requires 2D array", node.line)
+                            data[i * cols + j] = row.items[j].toDouble(node.line)
                         }
                     }
                     TValue4.TMatrix(rows, cols, data)
@@ -792,6 +826,8 @@ class Evaluator4(private val context: Context) {
                 "cross" -> {
                     val a = args[0] as? TValue4.TArray ?: throw TesseractError4("cross requires array", node.line)
                     val b = args[1] as? TValue4.TArray ?: throw TesseractError4("cross requires array", node.line)
+                    if (a.items.size != 3) throw TesseractError4("cross requires vectors with exactly 3 elements", node.line)
+                    if (b.items.size != 3) throw TesseractError4("cross requires vectors with exactly 3 elements", node.line)
                     val ax = a.items[0].toDouble(node.line)
                     val ay = a.items[1].toDouble(node.line)
                     val az = a.items[2].toDouble(node.line)
@@ -871,6 +907,81 @@ class Evaluator4(private val context: Context) {
                     TValue4.TBool(diff < tol)
                 }
                 
+                "is_prime" -> {
+                    val n = args[0].toLong(node.line)
+                    if (n < 2) TValue4.TBool(false)
+                    else {
+                        var prime = true
+                        if (n < 4) prime = true
+                        else if (n % 2 == 0L || n % 3 == 0L) prime = false
+                        else {
+                            var i = 5L
+                            while (i * i <= n) {
+                                if (n % i == 0L || n % (i + 2) == 0L) { prime = false; break }
+                                i += 6
+                            }
+                        }
+                        TValue4.TBool(prime)
+                    }
+                }
+                
+                "factorize" -> {
+                    var num = args[0].toLong(node.line)
+                    if (num < 2) throw TesseractError4("factorize requires n >= 2", node.line)
+                    val factors = mutableListOf<TValue4>()
+                    while (num % 2 == 0L) { factors.add(TValue4.TInt(2)); num /= 2 }
+                    var d = 3L
+                    while (d * d <= num) {
+                        while (num % d == 0L) { factors.add(TValue4.TInt(d)); num /= d }
+                        d += 2
+                    }
+                    if (num > 1) factors.add(TValue4.TInt(num))
+                    TValue4.TArray(factors)
+                }
+                
+                "next_prime" -> {
+                    var n = args[0].toLong(node.line) + 1
+                    fun isPrime(x: Long): Boolean {
+                        if (x < 2) return false
+                        if (x < 4) return true
+                        if (x % 2 == 0L || x % 3 == 0L) return false
+                        var i = 5L
+                        while (i * i <= x) {
+                            if (x % i == 0L || x % (i + 2) == 0L) return false
+                            i += 6
+                        }
+                        return true
+                    }
+                    val startTime = System.currentTimeMillis()
+                    while (!isPrime(n)) {
+                        if (System.currentTimeMillis() - startTime > 2000) {
+                            throw TesseractError4("next_prime: timeout (took more than 2 seconds)", node.line)
+                        }
+                        n++
+                    }
+                    TValue4.TInt(n)
+                }
+                
+                "primes_up_to" -> {
+                    val n = args[0].toLong(node.line)
+                    if (n > 10_000_000L) throw TesseractError4("primes_up_to: n too large (max 10,000,000)", node.line)
+                    val nInt = n.toInt()
+                    if (nInt < 2) return TValue4.TArray(mutableListOf())
+                    val sieve = BooleanArray(nInt + 1) { true }
+                    sieve[0] = false; sieve[1] = false
+                    var i = 2
+                    while (i * i <= nInt) {
+                        if (sieve[i]) {
+                            var j = i * i
+                            while (j <= nInt) { sieve[j] = false; j += i }
+                        }
+                        i++
+                    }
+                    val result = mutableListOf<TValue4>()
+                    for (i in 2..nInt) if (sieve[i]) result.add(TValue4.TInt(i.toLong()))
+                    TValue4.TArray(result)
+                }
+                
                 "find_root" -> {
                     val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("find_root requires function", node.line)
                     var a = args[1].toDouble(node.line)
@@ -879,10 +990,13 @@ class Evaluator4(private val context: Context) {
                     var fa = callTFunction(f, listOf(TValue4.TNum(a)), node.line).toDouble(node.line)
                     val fb = callTFunction(f, listOf(TValue4.TNum(b)), node.line).toDouble(node.line)
                     
+                    if (abs(fa) < tol) return TValue4.TNum(a)
+                    if (abs(fb) < tol) return TValue4.TNum(b)
+                    
                     if (fa * fb > 0.0) throw TesseractError4("find_root: f(a) and f(b) must have different signs", node.line)
                     
                     var resMid = (a + b) / 2.0
-                    for (i in 0 until 100) {
+                    for (i in 0 until 200) {
                         val mid = (a + b) / 2.0
                         val fmid = callTFunction(f, listOf(TValue4.TNum(mid)), node.line).toDouble(node.line)
                         if (abs(fmid) < tol || (b - a) / 2 < tol) {
@@ -898,6 +1012,23 @@ class Evaluator4(private val context: Context) {
                     }
                     TValue4.TNum(resMid)
                 }
+                
+                "find_root_newton" -> {
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("find_root_newton requires function", node.line)
+                    var x = args[1].toDouble(node.line)
+                    val tol = if (args.size > 2) args[2].toDouble(node.line) else 1e-9
+                    val maxIter = if (args.size > 3) args[3].toLong(node.line).toInt() else 100
+                    val h = 1e-7
+                    for (i in 0 until maxIter) {
+                        val fx = callTFunction(f, listOf(TValue4.TNum(x)), node.line).toDouble(node.line)
+                        if (abs(fx) < tol) break
+                        val fxh = callTFunction(f, listOf(TValue4.TNum(x + h)), node.line).toDouble(node.line)
+                        val dfx = (fxh - fx) / h
+                        if (abs(dfx) < 1e-15) throw TesseractError4("Newton: zero derivative", node.line)
+                        x -= fx / dfx
+                    }
+                    TValue4.TNum(x)
+                }
 
                 "complex" -> TValue4.TComplex(args[0].toDouble(node.line), args[1].toDouble(node.line))
                 "conj" -> { val z = args[0] as? TValue4.TComplex ?: throw TesseractError4("conj requires complex", node.line); TValue4.TComplex(z.re, -z.im) }
@@ -912,12 +1043,314 @@ class Evaluator4(private val context: Context) {
                     }
                 }
                 
-                "hypot" -> TValue4.TNum(hypot(args[0].toDouble(node.line), args[1].toDouble(node.line)))
+                "hypot" -> {
+                    if (args.size == 1) {
+                        val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("hypot(arr) requires array", node.line)
+                        var sum = 0.0
+                        for (x in arr.items) sum += x.toDouble(node.line) * x.toDouble(node.line)
+                        TValue4.TNum(sqrt(sum))
+                    } else {
+                        TValue4.TNum(hypot(args[0].toDouble(node.line), args[1].toDouble(node.line)))
+                    }
+                }
                 "atan2" -> TValue4.TNum(atan2(args[0].toDouble(node.line), args[1].toDouble(node.line)))
                 "degrees" -> TValue4.TNum(args[0].toDouble(node.line) * 180.0 / PI)
                 "radians" -> TValue4.TNum(args[0].toDouble(node.line) * PI / 180.0)
                 "sign" -> TValue4.TNum(sign(args[0].toDouble(node.line)))
                 "clamp" -> TValue4.TNum(args[0].toDouble(node.line).coerceIn(args[1].toDouble(node.line), args[2].toDouble(node.line)))
+                
+                "azimuth" -> {
+                    val dx = args[0].toDouble(node.line)
+                    val dy = args[1].toDouble(node.line)
+                    var az = atan2(dx, dy) * 180 / PI
+                    if (az < 0) az += 360
+                    TValue4.TNum(az)
+                }
+                
+                "bearing" -> {
+                    val lat1 = args[0].toDouble(node.line) * PI / 180
+                    val lon1 = args[1].toDouble(node.line) * PI / 180
+                    val lat2 = args[2].toDouble(node.line) * PI / 180
+                    val lon2 = args[3].toDouble(node.line) * PI / 180
+                    val y = sin(lon2 - lon1) * cos(lat2)
+                    val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon2 - lon1)
+                    var brng = atan2(y, x) * 180 / PI
+                    brng = (brng + 360) % 360
+                    TValue4.TNum(brng)
+                }
+                
+                "haversine" -> {
+                    val lat1 = args[0].toDouble(node.line) * PI / 180
+                    val lon1 = args[1].toDouble(node.line) * PI / 180
+                    val lat2 = args[2].toDouble(node.line) * PI / 180
+                    val lon2 = args[3].toDouble(node.line) * PI / 180
+                    val R = if (args.size > 4) args[4].toDouble(node.line) else 6371.0
+                    val dlat = lat2 - lat1
+                    val dlon = lon2 - lon1
+                    val a = sin(dlat / 2).pow(2) + cos(lat1) * cos(lat2) * sin(dlon / 2).pow(2)
+                    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+                    TValue4.TNum(R * c)
+                }
+                
+                "distance_2d" -> {
+                    val p1 = args[0] as? TValue4.TArray ?: throw TesseractError4("distance_2d requires array", node.line)
+                    val p2 = args[1] as? TValue4.TArray ?: throw TesseractError4("distance_2d requires array", node.line)
+                    if (p1.items.size < 2) throw TesseractError4("distance_2d: p1 must have at least 2 elements", node.line)
+                    if (p2.items.size < 2) throw TesseractError4("distance_2d: p2 must have at least 2 elements", node.line)
+                    val dx = p2.items[0].toDouble(node.line) - p1.items[0].toDouble(node.line)
+                    val dy = p2.items[1].toDouble(node.line) - p1.items[1].toDouble(node.line)
+                    TValue4.TNum(sqrt(dx * dx + dy * dy))
+                }
+                
+                "distance_3d" -> {
+                    val p1 = args[0] as? TValue4.TArray ?: throw TesseractError4("distance_3d requires array", node.line)
+                    val p2 = args[1] as? TValue4.TArray ?: throw TesseractError4("distance_3d requires array", node.line)
+                    if (p1.items.size < 3) throw TesseractError4("distance_3d: p1 must have at least 3 elements", node.line)
+                    if (p2.items.size < 3) throw TesseractError4("distance_3d: p2 must have at least 3 elements", node.line)
+                    val dx = p2.items[0].toDouble(node.line) - p1.items[0].toDouble(node.line)
+                    val dy = p2.items[1].toDouble(node.line) - p1.items[1].toDouble(node.line)
+                    val dz = p2.items[2].toDouble(node.line) - p1.items[2].toDouble(node.line)
+                    TValue4.TNum(sqrt(dx * dx + dy * dy + dz * dz))
+                }
+                
+                "integrate_num" -> {
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("integrate_num requires function", node.line)
+                    val a = args[1].toDouble(node.line)
+                    val b = args[2].toDouble(node.line)
+                    var n = if (args.size > 3) args[3].toLong(node.line).toInt() else 100
+                    if (n > 1_000_000) throw TesseractError4("integrate_num: n too large (max 1,000,000)", node.line)
+                    if (n % 2 != 0) n++
+                    val h = (b - a) / n
+                    var sum = callTFunction(f, listOf(TValue4.TNum(a)), node.line).toDouble(node.line) + 
+                              callTFunction(f, listOf(TValue4.TNum(b)), node.line).toDouble(node.line)
+                    for (i in 1 until n) {
+                        val x = a + i * h
+                        val fx = callTFunction(f, listOf(TValue4.TNum(x)), node.line).toDouble(node.line)
+                        sum += if (i % 2 == 0) 2 * fx else 4 * fx
+                    }
+                    TValue4.TNum(sum * h / 3)
+                }
+                
+                "rk4" -> {
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("rk4 requires function f(t,y)", node.line)
+                    val y0 = args[1].toDouble(node.line)
+                    val t0 = args[2].toDouble(node.line)
+                    val tEnd = args[3].toDouble(node.line)
+                    val dt = if (args.size > 4) args[4].toDouble(node.line) else 0.01
+                    val maxSteps = 100000
+                    val estimatedSteps = ((tEnd - t0) / dt).toLong()
+                    if (estimatedSteps > maxSteps) throw TesseractError4("rk4: too many steps ($estimatedSteps > $maxSteps). Increase dt or reduce range.", node.line)
+                    var y = y0
+                    var t = t0
+                    val result = mutableListOf<TValue4>()
+                    var steps = 0
+                    while (t < tEnd && steps < maxSteps) {
+                        val k1 = callTFunction(f, listOf(TValue4.TNum(t), TValue4.TNum(y)), node.line).toDouble(node.line)
+                        val k2 = callTFunction(f, listOf(TValue4.TNum(t + dt/2), TValue4.TNum(y + dt*k1/2)), node.line).toDouble(node.line)
+                        val k3 = callTFunction(f, listOf(TValue4.TNum(t + dt/2), TValue4.TNum(y + dt*k2/2)), node.line).toDouble(node.line)
+                        val k4 = callTFunction(f, listOf(TValue4.TNum(t + dt), TValue4.TNum(y + dt*k3)), node.line).toDouble(node.line)
+                        y += dt * (k1 + 2*k2 + 2*k3 + k4) / 6
+                        t += dt
+                        result.add(TValue4.TNum(y))
+                        steps++
+                    }
+                    TValue4.TArray(result)
+                }
+                
+                "fft" -> {
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("fft requires array", node.line)
+                    val n = arr.items.size
+                    if (n == 0 || (n and (n - 1)) != 0) throw TesseractError4("fft requires array size to be power of 2", node.line)
+                    if (n > 1_048_576) throw TesseractError4("fft: array too large (max 2^20 = 1,048,576)", node.line)
+                    
+                    fun fftRec(x: List<TValue4.TComplex>): List<TValue4.TComplex> {
+                        val n = x.size
+                        if (n == 1) return x
+                        val even = fftRec(x.filterIndexed { i, _ -> i % 2 == 0 })
+                        val odd = fftRec(x.filterIndexed { i, _ -> i % 2 == 1 })
+                        val result = MutableList<TValue4.TComplex>(n) { TValue4.TComplex(0.0, 0.0) }
+                        val ang = 2 * PI / n
+                        val wlen = TValue4.TComplex(cos(ang), sin(ang))
+                        var w = TValue4.TComplex(1.0, 0.0)
+                        for (i in 0 until n / 2) {
+                            val evenVal = even[i]
+                            val oddVal = odd[i]
+                            val wOdd = TValue4.TComplex(w.re * oddVal.re - w.im * oddVal.im, w.re * oddVal.im + w.im * oddVal.re)
+                            result[i] = TValue4.TComplex(evenVal.re + wOdd.re, evenVal.im + wOdd.im)
+                            result[i + n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
+                            w = TValue4.TComplex(w.re * wlen.re - w.im * wlen.im, w.re * wlen.im + w.im * wlen.re)
+                        }
+                        return result
+                    }
+                    
+                    val input = arr.items.map { 
+                        when (it) {
+                            is TValue4.TComplex -> it
+                            is TValue4.TNum -> TValue4.TComplex(it.value, 0.0)
+                            is TValue4.TInt -> TValue4.TComplex(it.value.toDouble(), 0.0)
+                            else -> throw TesseractError4("fft requires numeric array", node.line)
+                        }
+                    }
+                    TValue4.TArray(fftRec(input).toMutableList())
+                }
+                
+                "ifft" -> {
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("ifft requires array", node.line)
+                    val n = arr.items.size
+                    if (n == 0 || (n and (n - 1)) != 0) throw TesseractError4("ifft requires array size to be power of 2", node.line)
+                    if (n > 1_048_576) throw TesseractError4("ifft: array too large (max 2^20 = 1,048,576)", node.line)
+                    
+                    fun fftRec(x: List<TValue4.TComplex>): List<TValue4.TComplex> {
+                        val n = x.size
+                        if (n == 1) return x
+                        val even = fftRec(x.filterIndexed { i, _ -> i % 2 == 0 })
+                        val odd = fftRec(x.filterIndexed { i, _ -> i % 2 == 1 })
+                        val result = MutableList<TValue4.TComplex>(n) { TValue4.TComplex(0.0, 0.0) }
+                        val ang = -2 * PI / n
+                        val wlen = TValue4.TComplex(cos(ang), sin(ang))
+                        var w = TValue4.TComplex(1.0, 0.0)
+                        for (i in 0 until n / 2) {
+                            val evenVal = even[i]
+                            val oddVal = odd[i]
+                            val wOdd = TValue4.TComplex(w.re * oddVal.re - w.im * oddVal.im, w.re * oddVal.im + w.im * oddVal.re)
+                            result[i] = TValue4.TComplex(evenVal.re + wOdd.re, evenVal.im + wOdd.im)
+                            result[i + n/2] = TValue4.TComplex(evenVal.re - wOdd.re, evenVal.im - wOdd.im)
+                            w = TValue4.TComplex(w.re * wlen.re - w.im * wlen.im, w.re * wlen.im + w.im * wlen.re)
+                        }
+                        return result
+                    }
+                    
+                    val input = arr.items.map { 
+                        when (it) {
+                            is TValue4.TComplex -> it
+                            is TValue4.TNum -> TValue4.TComplex(it.value, 0.0)
+                            is TValue4.TInt -> TValue4.TComplex(it.value.toDouble(), 0.0)
+                            else -> throw TesseractError4("ifft requires numeric array", node.line)
+                        }
+                    }
+                    val n2 = arr.items.size
+                    TValue4.TArray(fftRec(input).map { TValue4.TComplex(it.re / n2, it.im / n2) }.toMutableList())
+                }
+                
+                "interpolate_linear" -> {
+                    val points = args[0] as? TValue4.TArray ?: throw TesseractError4("interpolate_linear requires array of [x,y] pairs", node.line)
+                    if (points.items.isEmpty()) throw TesseractError4("interpolate_linear: empty points array", node.line)
+                    val x = args[1].toDouble(node.line)
+                    val pts = points.items.map { 
+                        it as? TValue4.TArray ?: throw TesseractError4("interpolate_linear: all points must be arrays", node.line)
+                    }
+                    for ((i, pt) in pts.withIndex()) {
+                        if (pt.items.size < 2) throw TesseractError4("interpolate_linear: point $i must have at least 2 elements [x,y]", node.line)
+                    }
+                    val sortedPts = pts.sortedBy { it.items[0].toDouble(node.line) }
+                    if (x <= sortedPts.first().items[0].toDouble(node.line)) return TValue4.TNum(sortedPts.first().items[1].toDouble(node.line))
+                    if (x >= sortedPts.last().items[0].toDouble(node.line)) return TValue4.TNum(sortedPts.last().items[1].toDouble(node.line))
+                    for (i in 0 until sortedPts.size - 1) {
+                        val x0 = sortedPts[i].items[0].toDouble(node.line)
+                        val x1 = sortedPts[i+1].items[0].toDouble(node.line)
+                        if (x >= x0 && x <= x1) {
+                            val y0 = sortedPts[i].items[1].toDouble(node.line)
+                            val y1 = sortedPts[i+1].items[1].toDouble(node.line)
+                            if (abs(x1 - x0) < 1e-15) throw TesseractError4("interpolate_linear: duplicate x values", node.line)
+                            val y = y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+                            return TValue4.TNum(y)
+                        }
+                    }
+                    TValue4.TNum(0.0)
+                }
+                
+                "interpolate_lagrange" -> {
+                    val points = args[0] as? TValue4.TArray ?: throw TesseractError4("interpolate_lagrange requires array of [x,y] pairs", node.line)
+                    if (points.items.isEmpty()) throw TesseractError4("interpolate_lagrange: empty points array", node.line)
+                    val x = args[1].toDouble(node.line)
+                    val pts = points.items.map { 
+                        it as? TValue4.TArray ?: throw TesseractError4("interpolate_lagrange: all points must be arrays", node.line)
+                    }
+                    for ((i, pt) in pts.withIndex()) {
+                        if (pt.items.size < 2) throw TesseractError4("interpolate_lagrange: point $i must have at least 2 elements [x,y]", node.line)
+                    }
+                    var result = 0.0
+                    for (i in pts.indices) {
+                        val xi = pts[i].items[0].toDouble(node.line)
+                        val yi = pts[i].items[1].toDouble(node.line)
+                        var li = 1.0
+                        for (j in pts.indices) {
+                            if (i != j) {
+                                val xj = pts[j].items[0].toDouble(node.line)
+                                if (abs(xi - xj) < 1e-15) throw TesseractError4("interpolate_lagrange: duplicate x values", node.line)
+                                li *= (x - xj) / (xi - xj)
+                            }
+                        }
+                        result += yi * li
+                    }
+                    TValue4.TNum(result)
+                }
+                
+                "limit" -> {
+                    val f = args[0] as? TValue4.TFunction ?: throw TesseractError4("limit requires function", node.line)
+                    val a = args[1].toDouble(node.line)
+                    val hs = listOf(0.1, 0.01, 0.001, 0.0001, 0.00001, 1e-6, 1e-7)
+                    val leftVals = mutableListOf<Double>()
+                    val rightVals = mutableListOf<Double>()
+                    for (h in hs) {
+                        leftVals.add(callTFunction(f, listOf(TValue4.TNum(a - h)), node.line).toDouble(node.line))
+                        rightVals.add(callTFunction(f, listOf(TValue4.TNum(a + h)), node.line).toDouble(node.line))
+                    }
+                    val left = leftVals.last()
+                    val right = rightVals.last()
+                    if (abs(left - right) < 1e-6) TValue4.TNum((left + right) / 2)
+                    else TValue4.TNum(left)
+                }
+                
+                "convolve" -> {
+                    val a = args[0] as? TValue4.TArray ?: throw TesseractError4("convolve requires array", node.line)
+                    val b = args[1] as? TValue4.TArray ?: throw TesseractError4("convolve requires array", node.line)
+                    val n = a.items.size + b.items.size - 1
+                    val result = DoubleArray(n)
+                    for (i in a.items.indices) {
+                        for (j in b.items.indices) {
+                            result[i + j] += a.items[i].toDouble(node.line) * b.items[j].toDouble(node.line)
+                        }
+                    }
+                    TValue4.TArray(result.map { TValue4.TNum(it) }.toMutableList())
+                }
+                
+                "moving_average" -> {
+                    val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("moving_average requires array", node.line)
+                    val window = args[1].toLong(node.line).toInt()
+                    if (window < 1) throw TesseractError4("window must be >= 1", node.line)
+                    val result = mutableListOf<TValue4>()
+                    for (i in 0..arr.items.size - window) {
+                        var sum = 0.0
+                        for (j in 0 until window) sum += arr.items[i + j].toDouble(node.line)
+                        result.add(TValue4.TNum(sum / window))
+                    }
+                    TValue4.TArray(result)
+                }
+                
+                "ohm_v" -> TValue4.TNum(args[0].toDouble(node.line) * args[1].toDouble(node.line))
+                "ohm_i" -> { MathGuard4.checkDivision(args[1], node.line); TValue4.TNum(args[0].toDouble(node.line) / args[1].toDouble(node.line)) }
+                "ohm_r" -> { MathGuard4.checkDivision(args[1], node.line); TValue4.TNum(args[0].toDouble(node.line) / args[1].toDouble(node.line)) }
+                "power" -> TValue4.TNum(args[0].toDouble(node.line) * args[1].toDouble(node.line))
+                "voltage_divider" -> {
+                    val vin = args[0].toDouble(node.line)
+                    val r1 = args[1].toDouble(node.line)
+                    val r2 = args[2].toDouble(node.line)
+                    TValue4.TNum(vin * r2 / (r1 + r2))
+                }
+                "impedance_rlc" -> {
+                    val r = args[0].toDouble(node.line)
+                    val l = args[1].toDouble(node.line)
+                    val c = args[2].toDouble(node.line)
+                    val f = args[3].toDouble(node.line)
+                    val w = 2 * PI * f
+                    val xl = w * l
+                    val xc = if (c == 0.0) 0.0 else 1 / (w * c)
+                    TValue4.TNum(sqrt(r * r + (xl - xc).pow(2)))
+                }
+                "decibels" -> TValue4.TNum(10 * log10(args[0].toDouble(node.line)))
+                "decibels_power" -> TValue4.TNum(10 * log10(args[0].toDouble(node.line)))
+                "decibels_voltage" -> TValue4.TNum(20 * log10(args[0].toDouble(node.line)))
                 
                 "gcd" -> {
                     val a = BigInteger.valueOf(args[0].toLong(node.line))
@@ -1101,13 +1534,6 @@ class Evaluator4(private val context: Context) {
                 "max_val" -> TValue4.TNum(args.maxOfOrNull { it.toDouble(node.line) } ?: 0.0)
                 "min_val" -> TValue4.TNum(args.minOfOrNull { it.toDouble(node.line) } ?: 0.0)
                 "count" -> TValue4.TInt(args.size.toLong())
-                "median" -> {
-                    val sorted = args.map { it.toDouble(node.line) }.sorted()
-                    if (sorted.isEmpty()) throw TesseractError4("median requires arguments", node.line)
-                    val mid = sorted.size / 2
-                    val res = if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2.0 else sorted[mid]
-                    TValue4.TNum(res)
-                }
                 "toNum" -> TValue4.TNum(args[0].toDouble(node.line))
                 "toInt" -> TValue4.TInt(args[0].toLong(node.line))
                 "log2" -> { MathGuard4.checkOverflow(ln(args[0].toDouble(node.line)) / ln(2.0), node.line); TValue4.TNum(ln(args[0].toDouble(node.line)) / ln(2.0)) }
@@ -1168,8 +1594,10 @@ class Evaluator4(private val context: Context) {
                 }
                 "reduce" -> {
                     if (args.size < 2) throw TesseractError4("reduce requires at least 2 arguments", node.line)
-                    val arr = args.firstOrNull { it is TValue4.TArray } as? TValue4.TArray ?: throw TesseractError4("reduce requires array", node.line)
-                    val f = args.firstOrNull { it is TValue4.TFunction } as? TValue4.TFunction ?: throw TesseractError4("reduce requires function", node.line)
+                    val arr = args.firstOrNull { it is TValue4.TArray } as? TValue4.TArray 
+                        ?: throw TesseractError4("reduce requires array", node.line)
+                    val f = args.firstOrNull { it is TValue4.TFunction } as? TValue4.TFunction 
+                        ?: throw TesseractError4("reduce requires function", node.line)
                     
                     var currentAcc: TValue4
                     val startIndex: Int
@@ -1179,7 +1607,10 @@ class Evaluator4(private val context: Context) {
                         currentAcc = arr.items[0]
                         startIndex = 1
                     } else {
-                        currentAcc = args.first { it !is TValue4.TArray && it !is TValue4.TFunction }
+                        val nonArrNonFunc = args.firstOrNull { it !is TValue4.TArray && it !is TValue4.TFunction }
+                        if (nonArrNonFunc == null) 
+                            throw TesseractError4("reduce: third argument must be initial value (not array or function)", node.line)
+                        currentAcc = nonArrNonFunc
                         startIndex = 0
                     }
                     
@@ -1194,6 +1625,7 @@ class Evaluator4(private val context: Context) {
                     val idx = if (a0 is TValue4.TInt) a0 else a1 as? TValue4.TInt ?: throw TesseractError4("remove_at requires int", node.line)
                     val rawIndex = idx.value.toInt()
                     val actualIndex = if (rawIndex < 0) arr.items.size + rawIndex else rawIndex
+                    if (actualIndex < 0 || actualIndex >= arr.items.size) throw TesseractError4("remove_at: index out of bounds", node.line)
                     val newArr = arr.items.toMutableList()
                     newArr.removeAt(actualIndex)
                     TValue4.TArray(newArr)
@@ -1217,10 +1649,9 @@ class Evaluator4(private val context: Context) {
                 }
                 "memoize" -> {
                     val func = args[0] as? TValue4.TFunction ?: throw TesseractError4("memoize requires function", node.line)
-                    val memoEnv = func.closureEnv.createChild()
-                    memoEnv.set("__memo_cache__", TValue4.TArray(mutableListOf()))
                     val wrapper = TValue4.TArray(mutableListOf(func))
                     wrapper.fields["__memoized__"] = TValue4.TBool(true)
+                    wrapper.fields["__note__"] = TValue4.TStr("Memoization marker - caching not implemented in this version")
                     wrapper
                 }
                 "flatten" -> {
@@ -1290,6 +1721,7 @@ class Evaluator4(private val context: Context) {
                 
                 "permutations" -> {
                     val arr = (args[0] as? TValue4.TArray ?: throw TesseractError4("permutations requires array", node.line)).items
+                    if (arr.size > 10) throw TesseractError4("permutations: array too large (max 10 elements)", node.line)
                     if (arr.size <= 1) {
                         TValue4.TArray(mutableListOf(TValue4.TArray(arr.toMutableList())))
                     } else {
@@ -1312,6 +1744,7 @@ class Evaluator4(private val context: Context) {
                 "combinations" -> {
                     val arr = args[0] as? TValue4.TArray ?: throw TesseractError4("combinations requires array", node.line)
                     val k = args[1] as? TValue4.TInt ?: throw TesseractError4("combinations requires int", node.line)
+                    if (arr.items.size > 20) throw TesseractError4("combinations: array too large (max 20 elements)", node.line)
                     if (k.value.toInt() == 0) {
                         TValue4.TArray(mutableListOf(TValue4.TArray(mutableListOf())))
                     } else if (arr.items.isEmpty()) {
