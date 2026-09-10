@@ -37,6 +37,7 @@ import androidx.core.graphics.drawable.IconCompat
 import es.zelliot.perceptron.databinding.ActivityTesseractBinding
 import kotlinx.coroutines.*
 import java.util.regex.Pattern
+import kotlin.math.max
 
 class TesseractActivity : AppCompatActivity() {
 
@@ -46,11 +47,11 @@ class TesseractActivity : AppCompatActivity() {
     private val activityScope = CoroutineScope(Dispatchers.Main + Job())
     private var currentFileUri: Uri? = null
 
+    // --- ПЕРЕМЕННЫЕ ДЛЯ ПОИСКА ---
     private var isSearchPanelOpen = false
     private var searchMatches = listOf<IntRange>()
     private var currentMatchIndex = -1
     private var searchDebounceJob: Job? = null
-    private var isDraggingScrollThumb = false
 
     private val gestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -449,6 +450,9 @@ class TesseractActivity : AppCompatActivity() {
         activityScope.cancel()
     }
 
+    // ========================================================================
+    // ПОИСК И БЫСТРЫЙ СКРОЛЛ (адаптировано из EditorActivity)
+    // ========================================================================
     private fun setupSearchAndScroll() {
         setupSearchListeners()
         setupQuickScroll()
@@ -484,7 +488,7 @@ class TesseractActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 searchDebounceJob?.cancel()
                 searchDebounceJob = activityScope.launch {
-                    delay(150) // Уменьшен debounce для более быстрого отклика
+                    delay(150)
                     performSearch()
                 }
             }
@@ -496,122 +500,158 @@ class TesseractActivity : AppCompatActivity() {
         binding.btnReplaceAll.setOnClickListener { showReplaceAllDialog() }
     }
 
+    // Поиск с Regex.escape для безопасности (не падает на спецсимволах)
     private fun performSearch() {
         val query = binding.etSearch.text.toString()
-        val text = binding.etScript.text.toString()
-        searchMatches = mutableListOf()
-        currentMatchIndex = -1
+        val text = binding.etScript.text?.toString() ?: ""
 
-        if (query.isNotEmpty()) {
-            var index = text.indexOf(query, 0, ignoreCase = true)
-            while (index != -1) {
-                (searchMatches as MutableList).add(index until index + query.length)
-                index = text.indexOf(query, index + query.length, ignoreCase = true)
-            }
+        if (query.isEmpty()) {
+            searchMatches = emptyList()
+            currentMatchIndex = -1
+            return
         }
 
-        if (searchMatches.isNotEmpty()) {
-            currentMatchIndex = 0
-            highlightAndScrollToMatch()
-        } else {
-            binding.etScript.setSelection(0)
+        try {
+            val escaped = Regex.escape(query)
+            val regex = Regex(escaped, RegexOption.IGNORE_CASE)
+            searchMatches = regex.findAll(text).map { it.range }.toList()
+            currentMatchIndex = if (searchMatches.isNotEmpty()) 0 else -1
+
+            if (currentMatchIndex >= 0) {
+                selectMatchAt(currentMatchIndex)
+            }
+        } catch (e: Exception) {
+            searchMatches = emptyList()
+            currentMatchIndex = -1
+        }
+    }
+
+    // Выбирает совпадение и скроллит к нему
+    private fun selectMatchAt(index: Int) {
+        if (index < 0 || index >= searchMatches.size) return
+        val range = searchMatches[index]
+        val textLen = binding.etScript.text?.length ?: 0
+        val safeStart = range.first.coerceIn(0, textLen)
+        val safeEnd = (range.last + 1).coerceIn(0, textLen)
+        
+        binding.etScript.requestFocus()
+        binding.etScript.setSelection(safeStart, safeEnd)
+        revealSelection(safeStart)
+    }
+
+    // Автоскролл к позиции выделения
+    private fun revealSelection(selectionStart: Int) {
+        binding.etScript.post {
+            val layout = binding.etScript.layout ?: return@post
+            val line = layout.getLineForOffset(selectionStart)
+            val y = layout.getLineTop(line)
+            binding.etScript.scrollTo(0, y)
         }
     }
 
     private fun goToMatch(direction: Int) {
-        if (searchMatches.isEmpty()) return
-        currentMatchIndex = (currentMatchIndex + direction).mod(searchMatches.size)
-        highlightAndScrollToMatch()
-    }
-
-    private fun highlightAndScrollToMatch() {
-        val range = searchMatches[currentMatchIndex]
-        binding.etScript.setSelection(range.start, range.endInclusive + 1)
+        if (searchMatches.isEmpty()) {
+            showToast("Нет совпадений")
+            return
+        }
+        currentMatchIndex = if (direction > 0) {
+            (currentMatchIndex + 1) % searchMatches.size
+        } else {
+            if (currentMatchIndex - 1 < 0) searchMatches.size - 1 else currentMatchIndex - 1
+        }
+        selectMatchAt(currentMatchIndex)
         showToast("Совпадение ${currentMatchIndex + 1} из ${searchMatches.size}")
     }
 
     private fun replaceCurrentMatch() {
-        if (currentMatchIndex == -1 || searchMatches.isEmpty()) return
-        
-        val text = binding.etScript.text.toString()
-        val range = searchMatches[currentMatchIndex]
+        if (currentMatchIndex < 0 || searchMatches.isEmpty()) {
+            showToast("Нет совпадений для замены")
+            return
+        }
+        val query = binding.etSearch.text.toString()
         val replaceText = binding.etReplace.text.toString()
+        if (query.isEmpty()) {
+            showToast("Поле поиска пустое")
+            return
+        }
         
-        val newText = text.replaceRange(range, replaceText)
-        binding.etScript.setText(newText)
+        val range = searchMatches[currentMatchIndex]
+        val editable = binding.etScript.text ?: return
+        editable.replace(range.first, range.last + 1, replaceText)
         
+        // Пересчитываем совпадения после замены
         performSearch()
         showToast("Заменено")
     }
 
     private fun showReplaceAllDialog() {
         val query = binding.etSearch.text.toString()
-        if (query.isEmpty()) return
+        val replaceText = binding.etReplace.text.toString()
+        if (query.isEmpty()) {
+            showToast("Поле поиска пустое")
+            return
+        }
 
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         AlertDialog.Builder(darkContext)
             .setTitle("Заменить всё?")
-            .setMessage("Заменить все вхождения \"$query\" на \"${binding.etReplace.text}\"?")
+            .setMessage("Заменить все вхождения \"$query\" на \"$replaceText\"?")
             .setPositiveButton("ДА") { _, _ ->
-                val text = binding.etScript.text.toString()
-                val regex = Regex(Pattern.quote(query), RegexOption.IGNORE_CASE)
-                val newText = text.replace(regex, binding.etReplace.text.toString())
-                
-                binding.etScript.setText(newText)
-                performSearch()
-                showToast("Все совпадения заменены")
+                try {
+                    val text = binding.etScript.text?.toString() ?: ""
+                    val escaped = Regex.escape(query)
+                    val regex = Regex(escaped, RegexOption.IGNORE_CASE)
+                    val newText = regex.replace(text, replaceText)
+                    
+                    binding.etScript.setText(newText)
+                    binding.etScript.setSelection(0)
+                    searchMatches = emptyList()
+                    currentMatchIndex = -1
+                    showToast("Все совпадения заменены")
+                } catch (e: Exception) {
+                    showToast("Ошибка замены: ${e.message}")
+                }
             }
             .setNegativeButton("ОТМЕНА", null)
             .show()
     }
 
+    // БЫСТРЫЙ СКРОЛЛ: touch listener на корневом layout, зона 24dp слева
     private fun setupQuickScroll() {
-        binding.etScript.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                binding.etScript.viewTreeObserver.removeOnGlobalLayoutListener(this)
-            }
-        })
-
-        // Невидимый touch area для быстрого скролла
-        binding.quickScrollThumb.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    isDraggingScrollThumb = true
-                    scrollToPositionAtY(event.y)
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isDraggingScrollThumb) {
-                        scrollToPositionAtY(event.y)
+        binding.root.setOnTouchListener { v, ev ->
+            try {
+                val edgeWidthPx = dpToPx(24) // ширина gutter
+                val x = ev.x
+                val y = ev.y
+                
+                if (x <= edgeWidthPx) {
+                    if (ev.action == MotionEvent.ACTION_DOWN || ev.action == MotionEvent.ACTION_MOVE) {
+                        val layout = binding.etScript.layout ?: return@setOnTouchListener true
+                        val ratio = (y / v.height).coerceIn(0f, 1f)
+                        val targetLine = ((layout.lineCount - 1) * ratio).toInt()
+                            .coerceIn(0, max(0, layout.lineCount - 1))
+                        val offset = layout.getLineStart(targetLine)
+                        
+                        binding.etScript.requestFocus()
+                        binding.etScript.setSelection(offset)
+                        val top = layout.getLineTop(targetLine)
+                        binding.etScript.scrollTo(0, top)
                     }
-                    true
+                    return@setOnTouchListener true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isDraggingScrollThumb = false
-                    true
-                }
-                else -> false
-            }
+            } catch (_: Exception) { /* игнорируем ошибки touch */ }
+            false
         }
     }
 
-    private fun scrollToPositionAtY(y: Float) {
-        val layout = binding.etScript.layout ?: return
-        val totalHeight = layout.height
-        if (totalHeight == 0) return
-
-        val parentView = binding.quickScrollThumb.parent as View
-        val parentHeight = parentView.height
-        
-        // Маппим позицию Y на scrollY EditText
-        val scrollRatio = (y / parentHeight).coerceIn(0f, 1f)
-        val maxScroll = totalHeight - binding.etScript.height
-        val targetScrollY = (maxScroll * scrollRatio).toInt().coerceIn(0, maxScroll)
-        
-        // Скроллим EditText напрямую без setSelection (избегаем тряски)
-        binding.etScript.scrollTo(0, targetScrollY)
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
     }
 
+    // ========================================================================
+    // ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА (без изменений)
+    // ========================================================================
     private class TesseractHighlighter(
         private val editText: EditText,
         private val lifecycle: androidx.lifecycle.Lifecycle
