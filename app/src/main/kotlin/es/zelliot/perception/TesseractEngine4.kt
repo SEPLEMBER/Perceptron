@@ -454,14 +454,24 @@ class Evaluator4(private val context: Context) {
             is TValue4.TStr -> l.value == (r as TValue4.TStr).value
             is TValue4.TBool -> l.value == (r as TValue4.TBool).value
             is TValue4.TNull -> true
-            is TValue4.TComplex -> l.re == (r as TValue4.TComplex).re && l.im == r.im
-            is TValue4.TMatrix -> l.rows == r.rows && l.cols == r.cols && l.data.contentEquals(r.data)
+            is TValue4.TComplex -> {
+                val rc = r as TValue4.TComplex
+                l.re == rc.re && l.im == rc.im
+            }
+            is TValue4.TMatrix -> {
+                val rm = r as TValue4.TMatrix
+                l.rows == rm.rows && l.cols == rm.cols && l.data.contentEquals(rm.data)
+            }
             is TValue4.TArray -> {
-                if (l.items.size != r.items.size) false
-                else l.items.indices.all { valuesEqual(l.items[it], r.items[it], line) }
+                val ra = r as TValue4.TArray
+                if (l.items.size != ra.items.size) false
+                else l.items.indices.all { valuesEqual(l.items[it], ra.items[it], line) }
             }
             is TValue4.TFunction -> false 
-            is TValue4.TPoly -> l.coeffs == r.coeffs
+            is TValue4.TPoly -> {
+                val rp = r as TValue4.TPoly
+                l.coeffs == rp.coeffs
+            }
             else -> false 
         }
     }
