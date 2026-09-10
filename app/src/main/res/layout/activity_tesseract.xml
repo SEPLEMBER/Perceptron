@@ -202,7 +202,7 @@
             android:layout_height="1dp"
             android:background="#1F1F1F" />
 
-        <!-- 2. MAIN EDITOR AREA (С кастомным левым скроллом) -->
+        <!-- 2. MAIN EDITOR AREA (С улучшенным левым скроллом) -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -211,7 +211,7 @@
 
             <!-- Фон Gutter -->
             <LinearLayout
-                android:layout_width="12dp"
+                android:layout_width="16dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
                 android:orientation="vertical"
@@ -223,13 +223,13 @@
                     android:background="#1F1F1F" />
             </LinearLayout>
             
-            <!-- Ползунок быстрого скролла (Neon Cyan) -->
+            <!-- Ползунок быстрого скролла (Neon Cyan, увеличен для удобства) -->
             <View
                 android:id="@+id/quickScrollThumb"
-                android:layout_width="8dp"
-                android:layout_height="40dp"
+                android:layout_width="16dp"
+                android:layout_height="48dp"
                 android:layout_gravity="start|top"
-                android:layout_marginStart="2dp"
+                android:layout_marginStart="0dp"
                 android:layout_marginTop="0dp"
                 android:background="#00E5FF"
                 android:elevation="4dp" />
@@ -239,7 +239,7 @@
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="16dp"
                 android:background="#2C2F33" />
 
             <!-- Поле ввода кода -->
@@ -247,7 +247,7 @@
                 android:id="@+id/etScript"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginStart="13dp"
+                android:layout_marginStart="17dp"
                 android:background="#0F0F0F"
                 android:textColor="#EEFFFF"
                 android:textColorHint="#4A4A4A"
