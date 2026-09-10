@@ -258,6 +258,12 @@ class Parser4(private val tokens: List<Token4>) {
                 if (peek().type == TokenType4.COMMA) {
                     advance()
                     msg = parseExpression()
+                    // ИСПРАВЛЕНИЕ: Безопасно "проглатываем" лишние аргументы через запятую, 
+                    // чтобы избежать ошибки "Expected RPAREN, got ," при опечатках или лишних аргументах.
+                    while (peek().type == TokenType4.COMMA) {
+                        advance()
+                        parseExpression()
+                    }
                 }
                 if (hasParen) {
                     expect(TokenType4.RPAREN)
@@ -656,7 +662,6 @@ class Evaluator4(private val context: Context) {
         val args = node.args.map { eval(it) }
         val result = try {
             when (node.name) {
-                // ДОБАВЛЕНО: assert как встроенная функция для надежной работы
                 "assert" -> {
                     if (args.isEmpty()) throw TesseractError4("assert requires at least 1 argument", node.line)
                     val cond = args[0]
@@ -665,6 +670,23 @@ class Evaluator4(private val context: Context) {
                         throw TesseractError4("Assertion failed: $msg", node.line, callStack.toList())
                     }
                     TValue4.TNull
+                }
+                
+                // НОВАЯ ФУНКЦИЯ: as() для базового приведения типов
+                // Примеры: as(5.9, "int"), as("123", "num"), as(1, "bool")
+                "as" -> {
+                    if (args.size < 2) throw TesseractError4("as() requires value and target type", node.line)
+                    val value = args[0]
+                    val targetType = args[1].displayString().lowercase()
+                    when (targetType) {
+                        "int", "integer", "long" -> TValue4.TInt(value.toLong(node.line))
+                        "num", "number", "double", "float" -> TValue4.TNum(value.toDouble(node.line))
+                        "str", "string" -> TValue4.TStr(value.displayString())
+                        "bool", "boolean" -> TValue4.TBool(value.toBoolean())
+                        "bigint" -> TValue4.TBigInt(BigInteger.valueOf(value.toLong(node.line)))
+                        "complex" -> TValue4.TComplex(value.toDouble(node.line), 0.0)
+                        else -> throw TesseractError4("Unknown target type for as(): $targetType", node.line)
+                    }
                 }
                 
                 "print" -> { results.add(args.joinToString(" ") { it.displayString() }); TValue4.TNull }
