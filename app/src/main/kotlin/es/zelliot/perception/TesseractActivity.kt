@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.Spannable
 import android.text.Spanned
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
@@ -19,9 +20,11 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -52,6 +55,10 @@ class TesseractActivity : AppCompatActivity() {
     private var searchMatches = listOf<IntRange>()
     private var currentMatchIndex = -1
     private var searchDebounceJob: Job? = null
+    
+    // --- ПЕРЕМЕННЫЕ ДЛЯ ОВЕРЛЕЯ РЕЗУЛЬТАТОВ ---
+    private var isResultExpanded = false
+    private var originalResultLayoutParams: FrameLayout.LayoutParams? = null
 
     private val gestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -163,16 +170,29 @@ class TesseractActivity : AppCompatActivity() {
     private fun setupOverlays() {
         binding.btnCloseResult.setOnClickListener { hideResult() }
         binding.dimView.setOnClickListener { hideResult() }
-        binding.tvResultContent.setOnClickListener {
+        
+        // Кнопка копирования
+        binding.btnCopyResult.setOnClickListener {
             val text = binding.tvResultContent.text.toString()
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.clipboard_label), text))
-            showToast(getString(R.string.toast_copied))
+            clipboard.setPrimaryClip(ClipData.newPlainText("result", text))
+            showToast("Скопировано")
+        }
+        
+        // Кнопка расширения/сужения
+        binding.btnExpandResult.setOnClickListener {
+            if (isResultExpanded) {
+                collapseResult()
+            } else {
+                expandResult()
+            }
         }
     }
 
     private fun showResult(text: String) {
-        binding.tvResultContent.text = text
+        // Применяем цветной синтаксис к результату
+        val spannableText = applyResultSyntax(text)
+        binding.tvResultContent.text = spannableText
         binding.tvResultContent.scrollTo(0, 0)
         
         binding.dimView.visibility = View.VISIBLE
@@ -186,7 +206,51 @@ class TesseractActivity : AppCompatActivity() {
         binding.overlayResult.animate().alpha(1f).scaleY(1f).scaleX(1f).setDuration(200).start()
     }
 
+    // Применяет цветной синтаксис к тексту результата
+    private fun applyResultSyntax(text: String): Spannable {
+        val spannable = android.text.SpannableString(text)
+        
+        // Neon cyan (#00E5FF) - основной цвет текста
+        val cyanColor = Color.parseColor("#00E5FF")
+        spannable.setSpan(ForegroundColorSpan(cyanColor), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        
+        // Neon green (#A8FF60) - для Success, OK, true, положительных чисел
+        val greenColor = Color.parseColor("#A8FF60")
+        
+        // Паттерны для подсветки зеленым
+        val successPatterns = listOf(
+            Regex("\\bSuccess\\b", RegexOption.IGNORE_CASE),
+            Regex("\\bOK\\b", RegexOption.IGNORE_CASE),
+            Regex("\\btrue\\b", RegexOption.IGNORE_CASE),
+            Regex("\\bCompleted\\b", RegexOption.IGNORE_CASE),
+            Regex("\\bDone\\b", RegexOption.IGNORE_CASE),
+            Regex("\\bPassed\\b", RegexOption.IGNORE_CASE),
+            Regex("\\b✓\\b"),
+            Regex("\\b✔\\b"),
+            Regex("\\b\\+\\d+(?:\\.\\d+)?\\b"), // положительные числа
+            Regex("\\b\\d+(?:\\.\\d+)?\\s*(?:ms|s|sec|seconds|milliseconds)\\b", RegexOption.IGNORE_CASE) // время
+        )
+        
+        for (pattern in successPatterns) {
+            for (match in pattern.findAll(text)) {
+                spannable.setSpan(
+                    ForegroundColorSpan(greenColor),
+                    match.range.first,
+                    match.range.last + 1,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+        
+        return spannable
+    }
+
     private fun hideResult() {
+        // Сбрасываем состояние расширения при закрытии
+        if (isResultExpanded) {
+            collapseResult()
+        }
+        
         binding.dimView.animate().alpha(0f).setDuration(150).withEndAction { binding.dimView.visibility = View.GONE }.start()
         binding.overlayResult.animate().alpha(0f).scaleY(0.95f).scaleX(0.95f).setDuration(150).withEndAction {
             binding.overlayResult.visibility = View.GONE
@@ -194,6 +258,54 @@ class TesseractActivity : AppCompatActivity() {
             binding.overlayResult.scaleY = 1f
             binding.overlayResult.scaleX = 1f
         }.start()
+    }
+    
+    // Расширяет поле результата на весь экран
+    private fun expandResult() {
+        // Сохраняем оригинальные параметры
+        originalResultLayoutParams = binding.overlayResult.layoutParams as? FrameLayout.LayoutParams
+        
+        // Убираем padding у контейнера
+        binding.resultContainer.setPadding(0, 0, 0, 0)
+        
+        // Расширяем overlayResult на весь экран
+        val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
+        params.width = FrameLayout.LayoutParams.MATCH_PARENT
+        params.height = FrameLayout.LayoutParams.MATCH_PARENT
+        params.gravity = android.view.Gravity.NO_GRAVITY
+        binding.overlayResult.layoutParams = params
+        
+        // Убираем maxHeight у TextView
+        binding.tvResultContent.maxHeight = Int.MAX_VALUE
+        
+        // Меняем текст кнопки
+        binding.btnExpandResult.text = "Уменьшить"
+        isResultExpanded = true
+    }
+    
+    // Возвращает поле результата в обычный формат
+    private fun collapseResult() {
+        // Восстанавливаем padding контейнера (24dp в пикселях)
+        val paddingPx = (24 * resources.displayMetrics.density).toInt()
+        binding.resultContainer.setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        
+        // Восстанавливаем параметры или устанавливаем стандартные
+        if (originalResultLayoutParams != null) {
+            binding.overlayResult.layoutParams = originalResultLayoutParams
+        } else {
+            val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
+            params.width = FrameLayout.LayoutParams.MATCH_PARENT
+            params.height = FrameLayout.LayoutParams.WRAP_CONTENT
+            params.gravity = android.view.Gravity.CENTER
+            binding.overlayResult.layoutParams = params
+        }
+        
+        // Возвращаем maxHeight
+        binding.tvResultContent.maxHeight = (400 * resources.displayMetrics.density).toInt()
+        
+        // Меняем текст кнопки обратно
+        binding.btnExpandResult.text = "Расширить"
+        isResultExpanded = false
     }
 
     data class ConstantDef(val name: String, val defaultValue: Double, val matchRange: IntRange)
@@ -450,9 +562,6 @@ class TesseractActivity : AppCompatActivity() {
         activityScope.cancel()
     }
 
-    // ========================================================================
-    // ПОИСК И БЫСТРЫЙ СКРОЛЛ (адаптировано из EditorActivity)
-    // ========================================================================
     private fun setupSearchAndScroll() {
         setupSearchListeners()
         setupQuickScroll()
@@ -500,7 +609,6 @@ class TesseractActivity : AppCompatActivity() {
         binding.btnReplaceAll.setOnClickListener { showReplaceAllDialog() }
     }
 
-    // Поиск с Regex.escape для безопасности (не падает на спецсимволах)
     private fun performSearch() {
         val query = binding.etSearch.text.toString()
         val text = binding.etScript.text?.toString() ?: ""
@@ -526,7 +634,6 @@ class TesseractActivity : AppCompatActivity() {
         }
     }
 
-    // Выбирает совпадение и скроллит к нему
     private fun selectMatchAt(index: Int) {
         if (index < 0 || index >= searchMatches.size) return
         val range = searchMatches[index]
@@ -539,7 +646,6 @@ class TesseractActivity : AppCompatActivity() {
         revealSelection(safeStart)
     }
 
-    // Автоскролл к позиции выделения
     private fun revealSelection(selectionStart: Int) {
         binding.etScript.post {
             val layout = binding.etScript.layout ?: return@post
@@ -579,7 +685,6 @@ class TesseractActivity : AppCompatActivity() {
         val editable = binding.etScript.text ?: return
         editable.replace(range.first, range.last + 1, replaceText)
         
-        // Пересчитываем совпадения после замены
         performSearch()
         showToast("Заменено")
     }
@@ -616,11 +721,10 @@ class TesseractActivity : AppCompatActivity() {
             .show()
     }
 
-    // БЫСТРЫЙ СКРОЛЛ: touch listener на корневом layout, зона 24dp слева
     private fun setupQuickScroll() {
         binding.root.setOnTouchListener { v, ev ->
             try {
-                val edgeWidthPx = dpToPx(24) // ширина gutter
+                val edgeWidthPx = dpToPx(24)
                 val x = ev.x
                 val y = ev.y
                 
@@ -639,7 +743,7 @@ class TesseractActivity : AppCompatActivity() {
                     }
                     return@setOnTouchListener true
                 }
-            } catch (_: Exception) { /* игнорируем ошибки touch */ }
+            } catch (_: Exception) { }
             false
         }
     }
@@ -649,9 +753,6 @@ class TesseractActivity : AppCompatActivity() {
         return (dp * density).toInt()
     }
 
-    // ========================================================================
-    // ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА (без изменений)
-    // ========================================================================
     private class TesseractHighlighter(
         private val editText: EditText,
         private val lifecycle: androidx.lifecycle.Lifecycle
