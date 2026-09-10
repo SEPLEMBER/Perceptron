@@ -51,6 +51,34 @@ class TesseractActivity : AppCompatActivity() {
     private var searchMatches = listOf<IntRange>()
     private var currentMatchIndex = -1
     private var searchDebounceJob: Job? = null
+    private var isDraggingScrollThumb = false // Флаг для предотвращения тряски при скролле
+
+    private val gestureDetector by lazy {
+        GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                val deltaX = e2.x - (e1?.x ?: 0f)
+                val deltaY = e2.y - (e1?.y ?: 0f)
+                
+                // Горизонтальный свайп, достаточно длинный и быстрый
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 100f && Math.abs(velocityX) > 100f) {
+                    if (deltaX < 0) {
+                        openSearchPanel() // Свайп справа налево
+                        return true
+                    } else if (isSearchPanelOpen) {
+                        closeSearchPanel() // Свайп слева направо (только если открыто)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+    }
+
+    // Перехват жестов на уровне всей Activity (самый надежный способ, не блокирует EditText)
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
 
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -164,7 +192,7 @@ class TesseractActivity : AppCompatActivity() {
 
     private fun hideResult() {
         binding.dimView.animate().alpha(0f).setDuration(150).withEndAction { binding.dimView.visibility = View.GONE }.start()
-        binding.overlayResult.animate().alpha(0f).scaleY(0.95f).scaleX(0.95f).setDuration(150).withEndAction {
+        binding.overlayResult.animate().alpha(0f).scaleY(0.95).scaleX(0.95f).setDuration(150).withEndAction {
             binding.overlayResult.visibility = View.GONE
             binding.overlayResult.alpha = 1f
             binding.overlayResult.scaleY = 1f
@@ -431,36 +459,8 @@ class TesseractActivity : AppCompatActivity() {
     // НОВЫЕ ФУНКЦИИ: ПОИСК, ЗАМЕНА И БЫСТРЫЙ СКРОЛЛ
     // ========================================================================
     private fun setupSearchAndScroll() {
-        setupSwipeGestures()
         setupSearchListeners()
         setupQuickScroll()
-    }
-
-    private fun setupSwipeGestures() {
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                val deltaX = e2.x - (e1?.x ?: 0f)
-                val deltaY = e2.y - (e1?.y ?: 0f)
-                
-                // Горизонтальный свайп, достаточно длинный и быстрый
-                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 100f && Math.abs(velocityX) > 100f) {
-                    if (deltaX < 0) {
-                        openSearchPanel() // Свайп справа налево
-                        return true
-                    } else if (isSearchPanelOpen) {
-                        closeSearchPanel() // Свайп слева направо (только если открыто)
-                        return true
-                    }
-                }
-                return false
-            }
-        })
-
-        // Вешаем на корневой layout, чтобы свайп работал в любом месте экрана
-        binding.root.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false // не блокируем обычные клики
-        }
     }
 
     private fun openSearchPanel() {
@@ -535,7 +535,6 @@ class TesseractActivity : AppCompatActivity() {
 
     private fun highlightAndScrollToMatch() {
         val range = searchMatches[currentMatchIndex]
-        // setSelection автоматически скроллит EditText к нужной позиции
         binding.etScript.setSelection(range.start, range.endInclusive + 1)
         showToast("Совпадение ${currentMatchIndex + 1} из ${searchMatches.size}")
     }
@@ -564,7 +563,6 @@ class TesseractActivity : AppCompatActivity() {
             .setMessage("Заменить все вхождения \"$query\" на \"${binding.etReplace.text}\"?")
             .setPositiveButton("ДА") { _, _ ->
                 val text = binding.etScript.text.toString()
-                // Pattern.quote экранирует спецсимволы, IGNORE_CASE делает замену нечувствительной к регистру
                 val regex = Regex(Pattern.quote(query), RegexOption.IGNORE_CASE)
                 val newText = text.replace(regex, binding.etReplace.text.toString())
                 
@@ -577,7 +575,6 @@ class TesseractActivity : AppCompatActivity() {
     }
 
     private fun setupQuickScroll() {
-        // Обновляем позицию ползунка при скролле EditText
         binding.etScript.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 updateQuickScrollThumb()
@@ -585,14 +582,21 @@ class TesseractActivity : AppCompatActivity() {
             }
         })
 
+        // Обновляем позицию ползунка при скролле, ТОЛЬКО если мы его не тащим прямо сейчас
         binding.etScript.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            updateQuickScrollThumb()
+            if (!isDraggingScrollThumb) {
+                updateQuickScrollThumb()
+            }
         }
 
         // Обработка перетаскивания ползунка
         binding.quickScrollThumb.setOnTouchListener { v, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                MotionEvent.ACTION_DOWN -> {
+                    isDraggingScrollThumb = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
                     val parentView = v.parent as View
                     val parentHeight = parentView.height
                     val thumbHeight = v.height
@@ -612,6 +616,11 @@ class TesseractActivity : AppCompatActivity() {
                     }
                     true
                 }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isDraggingScrollThumb = false
+                    updateQuickScrollThumb() // Синхронизируем позицию после отпускания
+                    true
+                }
                 else -> false
             }
         }
@@ -624,27 +633,28 @@ class TesseractActivity : AppCompatActivity() {
 
         val parentView = binding.quickScrollThumb.parent as View
         val parentHeight = parentView.height
-        val thumbHeight = binding.quickScrollThumb.height
         
-        val firstVisibleLine = layout.getLineForVertical(binding.etScript.scrollY)
-        val scrollRatio = firstVisibleLine.toFloat() / totalLines
+        // Динамическая высота ползунка: увеличен минимум до 48dp для удобства захвата пальцем
+        val dynamicHeight = (parentHeight * (parentHeight.toFloat() / binding.etScript.height)).coerceIn(48f, 80f)
         
-        val maxThumbTop = parentHeight - thumbHeight
-        val newTop = (maxThumbTop * scrollRatio).coerceIn(0f, maxThumbTop.toFloat())
-        
-        binding.quickScrollThumb.y = newTop
-        
-        // Динамическая высота ползунка для удобства захвата
-        val dynamicHeight = (parentHeight * (parentHeight.toFloat() / binding.etScript.height)).coerceIn(30f, 80f)
         if (Math.abs(binding.quickScrollThumb.height - dynamicHeight) > 5) {
             val params = binding.quickScrollThumb.layoutParams
             params.height = dynamicHeight.toInt()
             binding.quickScrollThumb.layoutParams = params
         }
+        
+        val thumbHeight = binding.quickScrollThumb.height
+        val maxThumbTop = parentHeight - thumbHeight
+        
+        val firstVisibleLine = layout.getLineForVertical(binding.etScript.scrollY)
+        val scrollRatio = firstVisibleLine.toFloat() / totalLines
+        
+        val newTop = (maxThumbTop * scrollRatio).coerceIn(0f, maxThumbTop.toFloat())
+        binding.quickScrollThumb.y = newTop
     }
 
     // ========================================================================
-    // ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА (без изменений)
+    // ПОДСВЕЧИВАТЕЛЬ СИНТАКСИСА
     // ========================================================================
     private class TesseractHighlighter(
         private val editText: EditText,
