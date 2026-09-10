@@ -397,6 +397,12 @@ class Evaluator4(private val context: Context) {
 
     private fun evalBinaryOp(node: Expr4.BinaryOp): TValue4 {
         val left = eval(node.left); val right = eval(node.right)
+        
+        // 🔥 ИСПРАВЛЕНО: Строковая конкатенация имеет высший приоритет над математикой BigInt/Rational
+        if (node.op == TokenType4.PLUS && (left is TValue4.TStr || right is TValue4.TStr)) {
+            return TValue4.TStr(left.displayString() + right.displayString())
+        }
+
         if (node.op == TokenType4.AND) return TValue4.TBool(left.toBoolean() && right.toBoolean())
         if (node.op == TokenType4.OR) return TValue4.TBool(left.toBoolean() || right.toBoolean())
         if (node.op in listOf(TokenType4.GT, TokenType4.LT, TokenType4.GTE, TokenType4.LTE, TokenType4.EQ, TokenType4.NEQ)) {
