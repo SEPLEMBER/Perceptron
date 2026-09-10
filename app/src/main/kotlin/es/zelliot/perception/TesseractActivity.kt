@@ -50,15 +50,14 @@ class TesseractActivity : AppCompatActivity() {
     private val activityScope = CoroutineScope(Dispatchers.Main + Job())
     private var currentFileUri: Uri? = null
 
-    // --- ПЕРЕМЕННЫЕ ДЛЯ ПОИСКА ---
     private var isSearchPanelOpen = false
     private var searchMatches = listOf<IntRange>()
     private var currentMatchIndex = -1
     private var searchDebounceJob: Job? = null
     
-    // --- ПЕРЕМЕННЫЕ ДЛЯ ОВЕРЛЕЯ РЕЗУЛЬТАТОВ ---
+    // Переменные для расширения результата
     private var isResultExpanded = false
-    private var originalResultLayoutParams: FrameLayout.LayoutParams? = null
+    private var savedMaxHeight = 0
 
     private val gestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -171,7 +170,6 @@ class TesseractActivity : AppCompatActivity() {
         binding.btnCloseResult.setOnClickListener { hideResult() }
         binding.dimView.setOnClickListener { hideResult() }
         
-        // Кнопка копирования
         binding.btnCopyResult.setOnClickListener {
             val text = binding.tvResultContent.text.toString()
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -179,7 +177,6 @@ class TesseractActivity : AppCompatActivity() {
             showToast("Скопировано")
         }
         
-        // Кнопка расширения/сужения
         binding.btnExpandResult.setOnClickListener {
             if (isResultExpanded) {
                 collapseResult()
@@ -190,10 +187,14 @@ class TesseractActivity : AppCompatActivity() {
     }
 
     private fun showResult(text: String) {
-        // Применяем цветной синтаксис к результату
         val spannableText = applyResultSyntax(text)
         binding.tvResultContent.text = spannableText
         binding.tvResultContent.scrollTo(0, 0)
+        
+        // Сбрасываем состояние расширения
+        if (isResultExpanded) {
+            collapseResult()
+        }
         
         binding.dimView.visibility = View.VISIBLE
         binding.dimView.alpha = 0f
@@ -206,18 +207,14 @@ class TesseractActivity : AppCompatActivity() {
         binding.overlayResult.animate().alpha(1f).scaleY(1f).scaleX(1f).setDuration(200).start()
     }
 
-    // Применяет цветной синтаксис к тексту результата
     private fun applyResultSyntax(text: String): Spannable {
         val spannable = android.text.SpannableString(text)
         
-        // Neon cyan (#00E5FF) - основной цвет текста
         val cyanColor = Color.parseColor("#00E5FF")
         spannable.setSpan(ForegroundColorSpan(cyanColor), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         
-        // Neon green (#A8FF60) - для Success, OK, true, положительных чисел
         val greenColor = Color.parseColor("#A8FF60")
         
-        // Паттерны для подсветки зеленым
         val successPatterns = listOf(
             Regex("\\bSuccess\\b", RegexOption.IGNORE_CASE),
             Regex("\\bOK\\b", RegexOption.IGNORE_CASE),
@@ -227,8 +224,8 @@ class TesseractActivity : AppCompatActivity() {
             Regex("\\bPassed\\b", RegexOption.IGNORE_CASE),
             Regex("\\b✓\\b"),
             Regex("\\b✔\\b"),
-            Regex("\\b\\+\\d+(?:\\.\\d+)?\\b"), // положительные числа
-            Regex("\\b\\d+(?:\\.\\d+)?\\s*(?:ms|s|sec|seconds|milliseconds)\\b", RegexOption.IGNORE_CASE) // время
+            Regex("\\b\\+\\d+(?:\\.\\d+)?\\b"),
+            Regex("\\b\\d+(?:\\.\\d+)?\\s*(?:ms|s|sec|seconds|milliseconds)\\b", RegexOption.IGNORE_CASE)
         )
         
         for (pattern in successPatterns) {
@@ -246,7 +243,6 @@ class TesseractActivity : AppCompatActivity() {
     }
 
     private fun hideResult() {
-        // Сбрасываем состояние расширения при закрытии
         if (isResultExpanded) {
             collapseResult()
         }
@@ -260,50 +256,42 @@ class TesseractActivity : AppCompatActivity() {
         }.start()
     }
     
-    // Расширяет поле результата на весь экран
     private fun expandResult() {
-        // Сохраняем оригинальные параметры
-        originalResultLayoutParams = binding.overlayResult.layoutParams as? FrameLayout.LayoutParams
+        // Сохраняем текущий maxHeight
+        savedMaxHeight = binding.tvResultContent.maxHeight
         
         // Убираем padding у контейнера
         binding.resultContainer.setPadding(0, 0, 0, 0)
         
-        // Расширяем overlayResult на весь экран
+        // Расширяем overlayResult
         val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
         params.width = FrameLayout.LayoutParams.MATCH_PARENT
         params.height = FrameLayout.LayoutParams.MATCH_PARENT
         params.gravity = android.view.Gravity.NO_GRAVITY
         binding.overlayResult.layoutParams = params
         
-        // Убираем maxHeight у TextView
+        // Убираем maxHeight и делаем TextView расширяемым
         binding.tvResultContent.maxHeight = Int.MAX_VALUE
         
-        // Меняем текст кнопки
         binding.btnExpandResult.text = "Уменьшить"
         isResultExpanded = true
     }
     
-    // Возвращает поле результата в обычный формат
     private fun collapseResult() {
-        // Восстанавливаем padding контейнера (24dp в пикселях)
+        // Восстанавливаем padding контейнера
         val paddingPx = (24 * resources.displayMetrics.density).toInt()
         binding.resultContainer.setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
         
-        // Восстанавливаем параметры или устанавливаем стандартные
-        if (originalResultLayoutParams != null) {
-            binding.overlayResult.layoutParams = originalResultLayoutParams
-        } else {
-            val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
-            params.width = FrameLayout.LayoutParams.MATCH_PARENT
-            params.height = FrameLayout.LayoutParams.WRAP_CONTENT
-            params.gravity = android.view.Gravity.CENTER
-            binding.overlayResult.layoutParams = params
-        }
+        // Восстанавливаем параметры overlayResult
+        val params = binding.overlayResult.layoutParams as FrameLayout.LayoutParams
+        params.width = FrameLayout.LayoutParams.MATCH_PARENT
+        params.height = FrameLayout.LayoutParams.WRAP_CONTENT
+        params.gravity = android.view.Gravity.CENTER
+        binding.overlayResult.layoutParams = params
         
-        // Возвращаем maxHeight
-        binding.tvResultContent.maxHeight = (400 * resources.displayMetrics.density).toInt()
+        // Восстанавливаем maxHeight
+        binding.tvResultContent.maxHeight = savedMaxHeight
         
-        // Меняем текст кнопки обратно
         binding.btnExpandResult.text = "Расширить"
         isResultExpanded = false
     }
