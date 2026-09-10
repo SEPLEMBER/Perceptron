@@ -208,7 +208,6 @@
             android:layout_weight="1"
             android:background="#0A0A0A">
 
-            <!-- Фон Gutter (визуальный ориентир) -->
             <LinearLayout
                 android:layout_width="24dp"
                 android:layout_height="match_parent"
@@ -222,7 +221,6 @@
                     android:background="#1F1F1F" />
             </LinearLayout>
 
-            <!-- Разделитель -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
@@ -230,7 +228,6 @@
                 android:layout_marginStart="24dp"
                 android:background="#2C2F33" />
 
-            <!-- Поле ввода кода -->
             <EditText
                 android:id="@+id/etScript"
                 android:layout_width="match_parent"
@@ -254,7 +251,7 @@
                 android:typeface="monospace" />
         </FrameLayout>
 
-        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ (крупнее) -->
+        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ -->
         <LinearLayout
             android:id="@+id/searchPanel"
             android:layout_width="match_parent"
@@ -500,7 +497,7 @@
                 <View
                     android:layout_width="4dp"
                     android:layout_height="20dp"
-                    android:background="#A8FF60"
+                    android:background="#C792EA"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
@@ -508,13 +505,13 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/result_header"
-                    android:textColor="#A8FF60"
+                    android:textColor="#C792EA"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
                     android:textSize="13sp"
                     android:letterSpacing="0.1"
                     android:textAllCaps="true"
-                    android:shadowColor="#A8FF60"
+                    android:shadowColor="#C792EA"
                     android:shadowDx="0"
                     android:shadowDy="0"
                     android:shadowRadius="3" />
@@ -536,7 +533,8 @@
             <TextView
                 android:id="@+id/tvResultContent"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:minHeight="150dp"
                 android:maxHeight="400dp"
                 android:scrollbars="vertical"
