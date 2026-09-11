@@ -682,7 +682,9 @@ class TesseractActivity : AppCompatActivity() {
         val safeStart = range.first.coerceIn(0, textLen)
         val safeEnd = (range.last + 1).coerceIn(0, textLen)
         
-        binding.etScript.requestFocus()
+        // ИСПРАВЛЕНИЕ: Убран вызов requestFocus(), чтобы фокус ввода оставался 
+        // в поле поиска (etSearch). Это позволяет пользователю продолжать 
+        // вводить поисковый запрос, а выделение в редакторе обновится автоматически.
         binding.etScript.setSelection(safeStart, safeEnd)
         revealSelection(safeStart)
     }
