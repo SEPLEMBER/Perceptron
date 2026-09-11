@@ -164,7 +164,7 @@ class TesseractActivity : AppCompatActivity() {
         
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         AlertDialog.Builder(darkContext)
-            .setTitle("Очиститт")
+            .setTitle("Очистить")
             .setMessage("Вы точно хотите очистить поле ввода?")
             .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> 
                 binding.etScript.text.clear()
