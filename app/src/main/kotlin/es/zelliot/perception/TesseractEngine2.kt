@@ -5,7 +5,7 @@ import android.content.Context
 object TesseractEngine2 {
     
     // Константа версии, чтобы менять её в одном месте
-    private const val VERSION = "5.01 «QUASAR»"
+    private const val VERSION = "7.12 «Нью-Дели»"
 
     /**
      * Расширенный движок для системных команд и утилит.
