@@ -39,19 +39,11 @@
     <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ (общая для всех диалогов)                   -->
     <!-- ==================================================================== -->
     <style name="DarkDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
-        <!-- ЕДИНЫЙ ЦВЕТ для всего диалога (#0A0A0A - почти чёрный) -->
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- Единый тёмный фон для всего диалога (#0A0A0A) -->
         <item name="android:background">#0A0A0A</item>
         <item name="android:colorBackground">#0A0A0A</item>
         <item name="colorBackgroundFloating">#0A0A0A</item>
-        
-        <!-- Фон панели кнопок (Выполнить/Отмена) -->
-        <item name="android:panelBackground">#0A0A0A</item>
-        <item name="android:panelColorBackground">#0A0A0A</item>
-        
-        <!-- Фон заголовка и содержимого -->
-        <item name="android:windowTitlePanelBackground">#0A0A0A</item>
-        <item name="android:itemBackground">#0A0A0A</item>
+        <item name="android:windowBackground">#0A0A0A</item>
         
         <!-- Текст внутри диалога -->
         <item name="android:textColorPrimary">#EEFFFF</item>
@@ -60,7 +52,6 @@
         
         <!-- Цвет заголовка диалога -->
         <item name="android:textColorPrimaryInverse">#EEFFFF</item>
-        <item name="android:alertDialogStyle">@style/CustomAlertDialogStyle</item>
         
         <!-- Акценты и контролы -->
         <item name="colorAccent">#00E5FF</item>
@@ -74,22 +65,6 @@
         <item name="buttonBarPositiveButtonStyle">@style/DarkDialogButton.Positive</item>
         <item name="buttonBarNegativeButtonStyle">@style/DarkDialogButton.Negative</item>
         <item name="buttonBarNeutralButtonStyle">@style/DarkDialogButton.Neutral</item>
-    </style>
-
-    <!-- Кастомный стиль AlertDialog для полного контроля фона -->
-    <style name="CustomAlertDialogStyle" parent="Base.Theme.AppCompat.Dialog.Alert">
-        <item name="android:background">#0A0A0A</item>
-        <item name="android:panelBackground">#0A0A0A</item>
-        <item name="android:fullDark">#0A0A0A</item>
-        <item name="android:topDark">#0A0A0A</item>
-        <item name="android:centerDark">#0A0A0A</item>
-        <item name="android:bottomDark">#0A0A0A</item>
-        <item name="android:fullBright">#0A0A0A</item>
-        <item name="android:topBright">#0A0A0A</item>
-        <item name="android:centerBright">#0A0A0A</item>
-        <item name="android:bottomBright">#0A0A0A</item>
-        <item name="android:bottomMedium">#0A0A0A</item>
-        <item name="android:centerMedium">#0A0A0A</item>
     </style>
 
     <!-- Положительная кнопка: ФИОЛЕТОВЫЙ (цвет val/var/const) -->
