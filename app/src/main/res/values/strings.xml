@@ -122,10 +122,10 @@
     <!-- ENGINE: SYSTEM COMMANDS (TesseractEngine2)                            -->
     <!-- ==================================================================== -->
     <string name="cmd_about_title">🌌 ЯЗЫК PERCEPTRON</string>
-    <string name="cmd_about_desc">Предметно-ориентированный математический язык.\nВерсия: %1$s</string>
-    <string name="cmd_about_dev">👥 РАЗРАБОТАНО:\n   • Gemini (Google LLC)\n   • QWEN (Alibaba Group)\n   • ZELLIOT (EFP)</string>
-    <string name="cmd_about_features">💡 Поддерживает: переменные, циклы, функции,\n   тригонометрию, защиту от переполнения\n   и автоматическую нормализацию кириллицы.</string>
+    <string name="cmd_about_desc">Предметно-ориентированный логико-математический язык.\nВерсия: %1$s \nСентябрь 2026.</string>
+    <string name="cmd_about_dev">Разработано ZELLIOT (EFP)</string>
+    <string name="cmd_about_features">Поддерживает многие логические и математические операции.</string>
     <!-- Note: < and > characters are escaped as &lt; and &gt; for XML validity -->
-    <string name="cmd_help_content">📖 СПРАВКА PERCEPTRON:\n• Переменные: val x = 10\n• Функции: fn name(a, b) { return a + b }\n• Циклы: while i &lt; 10 do { ... }\n• Условия: if x &gt; 0 then "Yes" else "No"\n• Математика: sin(), cos(), pow(), sqrt()\n• Выход: EXIT или EXIT 2000 (мс)\n• Очистка: CLS</string>
+    <string name="cmd_help_content">📖 СПРАВКА PERCEPTRON:\nОзнакомьтесь с документацией.</string>
     <string name="cmd_version">Perceptron v%1$s</string>
 </resources>
