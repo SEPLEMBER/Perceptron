@@ -287,15 +287,18 @@ class TesseractActivity : AppCompatActivity() {
         isResultExpanded = false
     }
 
-    data class ConstantDef(val name: String, val defaultValue: Double, val matchRange: IntRange)
+    // Обновленная структура с типом константы
+    data class ConstantDef(val name: String, val defaultValue: Double, val matchRange: IntRange, val type: String)
 
+    // Обновленный regex для поддержки const
     private fun extractConstants(script: String): List<ConstantDef> {
         val constants = mutableListOf<ConstantDef>()
-        val regex = Regex("""(?:val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
+        val regex = Regex("""(const|val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
         for (match in regex.findAll(script)) {
-            val name = match.groupValues[1]
-            val value = match.groupValues[2].toDoubleOrNull() ?: 0.0
-            constants.add(ConstantDef(name, value, match.range))
+            val type = match.groupValues[1].lowercase()
+            val name = match.groupValues[2]
+            val value = match.groupValues[3].toDoubleOrNull() ?: 0.0
+            constants.add(ConstantDef(name, value, match.range, type))
         }
         return constants
     }
@@ -321,20 +324,64 @@ class TesseractActivity : AppCompatActivity() {
     private fun showConstantsDialog(constants: List<ConstantDef>, originalScript: String) {
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         val builder = AlertDialog.Builder(darkContext).setTitle(getString(R.string.dialog_params_title))
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 20) }
+        
+        // Layout с тёмным фоном (близким к чёрному)
+        val layout = LinearLayout(this).apply { 
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 20, 40, 20)
+            setBackgroundColor(Color.parseColor("#0A0A0A")) // Почти чёрный фон
+        }
         val editTexts = mutableMapOf<String, EditText>()
 
-        for (const in constants) {
+        // Сортируем: const сверху, val/var снизу
+        val sortedConstants = constants.sortedBy { if (it.type == "const") 0 else 1 }
+        val hasConst = sortedConstants.any { it.type == "const" }
+        val hasValVar = sortedConstants.any { it.type != "const" }
+        var addedDivider = false
+
+        for (const in sortedConstants) {
+            // Добавляем разделитель перед первой val/var, если были const
+            if (hasConst && hasValVar && const.type != "const" && !addedDivider) {
+                val divider = View(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        (1 * resources.displayMetrics.density).toInt()
+                    ).apply {
+                        setMargins(0, 30, 0, 30)
+                    }
+                    setBackgroundColor(Color.parseColor("#2C2F33"))
+                }
+                layout.addView(divider)
+                addedDivider = true
+            }
+
+            // Цвета для const: Neon Cyan, для val/var: Фиолетовый
+            val nameColor = if (const.type == "const") {
+                Color.parseColor("#00E5FF") // Neon Cyan для const
+            } else {
+                Color.parseColor("#C792EA") // Фиолетовый для val/var
+            }
+            
+            val tintColor = if (const.type == "const") {
+                Color.parseColor("#00E5FF")
+            } else {
+                Color.parseColor("#C792EA")
+            }
+
             val tv = TextView(this).apply {
-                text = const.name; setTextColor(Color.parseColor("#C792EA")); textSize = 16f
+                text = const.name
+                setTextColor(nameColor)
+                textSize = 16f
                 setTypeface(null, android.graphics.Typeface.BOLD)
             }
             val et = EditText(this).apply {
                 setText(const.defaultValue.toString())
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
-                setTextColor(Color.parseColor("#00FFFF")); setHintTextColor(Color.GRAY)
-                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#C792EA"))
-                setLongClickable(false); setTextIsSelectable(false)
+                setTextColor(Color.parseColor("#00FFFF"))
+                setHintTextColor(Color.GRAY)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(tintColor)
+                setLongClickable(false)
+                setTextIsSelectable(false)
                 val actionModeCallback = object : ActionMode.Callback {
                     override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
                     override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
@@ -345,24 +392,28 @@ class TesseractActivity : AppCompatActivity() {
                 setCustomInsertionActionModeCallback(actionModeCallback)
             }
             editTexts[const.name] = et
-            layout.addView(tv); layout.addView(et)
+            layout.addView(tv)
+            layout.addView(et)
         }
 
         val scrollView = ScrollView(this).apply { 
+            setBackgroundColor(Color.parseColor("#0A0A0A")) // Тёмный фон для скролла
             addView(layout, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         }
         builder.setView(scrollView)
 
         builder.setPositiveButton(getString(R.string.btn_execute)) { _, _ ->
-            val regex = Regex("""(?:val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
+            // Обновленный regex для замены с поддержкой const
+            val regex = Regex("""(const|val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
             val sb = StringBuilder()
             var lastEnd = 0
             
             for (match in regex.findAll(originalScript)) {
                 sb.append(originalScript, lastEnd, match.range.first)
-                val name = match.groupValues[1]
-                val newValue = editTexts[name]?.text.toString().toDoubleOrNull() ?: match.groupValues[2]
-                sb.append("val $name = $newValue")
+                val originalType = match.groupValues[1] // Сохраняем оригинальный тип (const/val/var)
+                val name = match.groupValues[2]
+                val newValue = editTexts[name]?.text.toString().toDoubleOrNull() ?: match.groupValues[3]
+                sb.append("$originalType $name = $newValue")
                 lastEnd = match.range.last + 1
             }
             sb.append(originalScript, lastEnd, originalScript.length)
