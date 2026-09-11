@@ -32,6 +32,6 @@ class MainActivity : AppCompatActivity() {
         Handler(Looper.getMainLooper()).postDelayed({
             startActivity(Intent(this, TesseractActivity::class.java))
             finish() // Закрываем MainActivity, чтобы пользователь не мог вернуться к сплэш-скрину кнопкой "Назад"
-        }, 900) 
+        }, 1300) 
     }
 }
