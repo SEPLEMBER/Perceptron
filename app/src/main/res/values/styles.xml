@@ -36,21 +36,22 @@
     </style>
 
     <!-- ==================================================================== -->
-    <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ                                             -->
+    <!-- ТЕМА ДЛЯ ТЁМНЫХ ДИАЛОГОВ (общая для всех диалогов)                   -->
     <!-- ==================================================================== -->
     <style name="DarkDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
-        <!-- Фон диалога: чуть темнее, но светлее 0A0A0A -->
+        <!-- Фон диалога: тёмный (#141414) -->
         <item name="android:windowBackground">#141414</item>
+        <item name="android:background">#141414</item>
+        <item name="android:colorBackground">#141414</item>
         
         <item name="android:textColorPrimary">#EEFFFF</item>
-        <item name="android:textColorSecondary">#A8FF60</item>
+        <item name="android:textColorSecondary">#A9B7C6</item>
         
         <item name="colorAccent">#00E5FF</item>
         <item name="colorControlActivated">#00E5FF</item>
         <item name="colorControlNormal">#546E7A</item>
         
         <item name="android:textColorHighlight">#4400E5FF</item>
-        
         <item name="colorControlHighlight">#4400E5FF</item>
 
         <item name="buttonBarPositiveButtonStyle">@style/DarkDialogButton.Positive</item>
@@ -58,24 +59,30 @@
         <item name="buttonBarNeutralButtonStyle">@style/DarkDialogButton.Neutral</item>
         
         <item name="android:textColorAlertDialogListItem">#EEFFFF</item>
+        
+        <!-- Цвет заголовка диалога -->
+        <item name="android:textColorPrimaryInverse">#EEFFFF</item>
     </style>
 
     <!-- Положительная кнопка: ФИОЛЕТОВЫЙ (цвет val/var/const) -->
     <style name="DarkDialogButton.Positive" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
         <item name="android:textColor">#C792EA</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 
     <!-- Отрицательная кнопка: ПРИГЛУШЕННЫЙ КОРИЧНЕВЫЙ (холодный тон) -->
     <style name="DarkDialogButton.Negative" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
         <item name="android:textColor">#7A6652</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 
     <!-- Нейтральная кнопка -->
     <style name="DarkDialogButton.Neutral" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
         <item name="android:textColor">#00E5FF</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 
     <!-- ==================================================================== -->
