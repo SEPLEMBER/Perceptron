@@ -164,8 +164,8 @@ class TesseractActivity : AppCompatActivity() {
         
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         AlertDialog.Builder(darkContext)
-            .setTitle("Clear Editor")
-            .setMessage("Are you sure you want to clear the current script?")
+            .setTitle("Очиститт")
+            .setMessage("Вы точно хотите очистить поле ввода?")
             .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> 
                 binding.etScript.text.clear()
                 currentFileUri = null
