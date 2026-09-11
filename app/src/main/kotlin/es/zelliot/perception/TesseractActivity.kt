@@ -96,7 +96,14 @@ class TesseractActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        
+        val prefs = getSharedPreferences("perceptron_prefs", Context.MODE_PRIVATE)
+        val screenshotsEnabled = prefs.getBoolean("screenshot_enabled", false)
+        if (screenshotsEnabled) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
 
         binding = ActivityTesseractBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -144,7 +151,10 @@ class TesseractActivity : AppCompatActivity() {
         AlertDialog.Builder(darkContext)
             .setTitle(getString(R.string.dialog_exit_title))
             .setMessage(getString(R.string.dialog_exit_message))
-            .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> finish() }
+            .setPositiveButton(getString(R.string.dialog_yes)) { _, _ -> 
+                finishAffinity()
+                kotlin.system.exitProcess(0)
+            }
             .setNegativeButton(getString(R.string.dialog_no), null)
             .show()
     }
@@ -486,6 +496,21 @@ class TesseractActivity : AppCompatActivity() {
     private fun executeScript(script: String) {
         activityScope.coroutineContext[Job]?.cancelChildren()
         
+        val trimmedScript = script.trim()
+        if (trimmedScript == "PERCEPTRON_SCREENSHOT_ENABLE") {
+            val prefs = getSharedPreferences("perceptron_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("screenshot_enabled", true).apply()
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            showResult("Скриншоты разрешены")
+            return
+        } else if (trimmedScript == "PERCEPTRON_SCREENSHOT_DISABLE") {
+            val prefs = getSharedPreferences("perceptron_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("screenshot_enabled", false).apply()
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            showResult("Скриншоты запрещены")
+            return
+        }
+        
         activityScope.launch {
             try {
                 val systemResult = try {
@@ -529,7 +554,8 @@ class TesseractActivity : AppCompatActivity() {
                     
                     showToast(getString(R.string.toast_exiting_in_ms, delayMs))
                     delay(delayMs)
-                    finish()
+                    finishAffinity()
+                    kotlin.system.exitProcess(0)
                 } else {
                     showResult(result)
                 }
@@ -585,10 +611,10 @@ class TesseractActivity : AppCompatActivity() {
             if (uriString != null) {
                 currentFileUri = Uri.parse(uriString)
                 loadFileContent(currentFileUri!!)
-                Handler(Looper.getMainLooper()).postDelayed({
-                    executeScript(binding.etScript.text.toString())
-                }, 500)
             }
+        } else if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+            currentFileUri = intent.data
+            loadFileContent(currentFileUri!!)
         }
     }
 
