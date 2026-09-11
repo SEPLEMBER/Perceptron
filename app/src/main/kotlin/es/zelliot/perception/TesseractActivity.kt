@@ -287,10 +287,8 @@ class TesseractActivity : AppCompatActivity() {
         isResultExpanded = false
     }
 
-    // Обновленная структура с типом константы
     data class ConstantDef(val name: String, val defaultValue: Double, val matchRange: IntRange, val type: String)
 
-    // Обновленный regex для поддержки const
     private fun extractConstants(script: String): List<ConstantDef> {
         val constants = mutableListOf<ConstantDef>()
         val regex = Regex("""(const|val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
@@ -325,22 +323,19 @@ class TesseractActivity : AppCompatActivity() {
         val darkContext = ContextThemeWrapper(this, R.style.DarkDialogTheme)
         val builder = AlertDialog.Builder(darkContext).setTitle(getString(R.string.dialog_params_title))
         
-        // Layout с тёмным фоном (близким к чёрному)
         val layout = LinearLayout(this).apply { 
             orientation = LinearLayout.VERTICAL
             setPadding(40, 20, 40, 20)
-            setBackgroundColor(Color.parseColor("#0A0A0A")) // Почти чёрный фон
+            setBackgroundColor(Color.parseColor("#0A0A0A"))
         }
         val editTexts = mutableMapOf<String, EditText>()
 
-        // Сортируем: const сверху, val/var снизу
         val sortedConstants = constants.sortedBy { if (it.type == "const") 0 else 1 }
         val hasConst = sortedConstants.any { it.type == "const" }
         val hasValVar = sortedConstants.any { it.type != "const" }
         var addedDivider = false
 
         for (const in sortedConstants) {
-            // Добавляем разделитель перед первой val/var, если были const
             if (hasConst && hasValVar && const.type != "const" && !addedDivider) {
                 val divider = View(this).apply {
                     layoutParams = LinearLayout.LayoutParams(
@@ -355,11 +350,10 @@ class TesseractActivity : AppCompatActivity() {
                 addedDivider = true
             }
 
-            // Цвета для const: Neon Cyan, для val/var: Фиолетовый
             val nameColor = if (const.type == "const") {
-                Color.parseColor("#00E5FF") // Neon Cyan для const
+                Color.parseColor("#00E5FF")
             } else {
-                Color.parseColor("#C792EA") // Фиолетовый для val/var
+                Color.parseColor("#C792EA")
             }
             
             val tintColor = if (const.type == "const") {
@@ -397,20 +391,19 @@ class TesseractActivity : AppCompatActivity() {
         }
 
         val scrollView = ScrollView(this).apply { 
-            setBackgroundColor(Color.parseColor("#0A0A0A")) // Тёмный фон для скролла
+            setBackgroundColor(Color.parseColor("#0A0A0A"))
             addView(layout, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         }
         builder.setView(scrollView)
 
         builder.setPositiveButton(getString(R.string.btn_execute)) { _, _ ->
-            // Обновленный regex для замены с поддержкой const
             val regex = Regex("""(const|val|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)""", RegexOption.IGNORE_CASE)
             val sb = StringBuilder()
             var lastEnd = 0
             
             for (match in regex.findAll(originalScript)) {
                 sb.append(originalScript, lastEnd, match.range.first)
-                val originalType = match.groupValues[1] // Сохраняем оригинальный тип (const/val/var)
+                val originalType = match.groupValues[1]
                 val name = match.groupValues[2]
                 val newValue = editTexts[name]?.text.toString().toDoubleOrNull() ?: match.groupValues[3]
                 sb.append("$originalType $name = $newValue")
@@ -424,7 +417,25 @@ class TesseractActivity : AppCompatActivity() {
         builder.setNegativeButton(getString(R.string.dialog_cancel)) { _, _ ->
             binding.etScript.setText(originalScript)
         }
-        builder.show()
+        
+        val dialog = builder.show()
+        
+        // Программно разделяем кнопки "Выполнить" и "Отмена"
+        try {
+            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            
+            // Добавляем левый отступ к положительной кнопке (Выполнить)
+            val params = positiveButton.layoutParams as? android.widget.LinearLayout.LayoutParams
+            params?.setMargins(24, 0, 0, 0) // 24px отступ слева
+            positiveButton.layoutParams = params
+            
+            // Усиливаем контраст цветов
+            positiveButton.setTextColor(Color.parseColor("#C792EA")) // Фиолетовый
+            negativeButton.setTextColor(Color.parseColor("#7A6652")) // Коричневый
+        } catch (e: Exception) {
+            // Игнорируем ошибки стилизации
+        }
     }
 
     private fun showShortcutDialog() {
