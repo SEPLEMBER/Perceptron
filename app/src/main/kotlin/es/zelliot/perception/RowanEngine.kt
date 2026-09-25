@@ -7,9 +7,12 @@ import kotlin.random.Random
 object RowanEngine {
     private val memory = mutableMapOf<Long, RowanValue>()
     private val secureRandom = SecureRandom()
+    // ИСПРАВЛЕНИЕ: Глобальный буфер для настоящего вывода
+    private val outputBuffer = StringBuilder()
 
     fun evaluate(script: String): String {
         memory.clear()
+        outputBuffer.clear() // Очищаем буфер перед каждым запуском
         val chunks = script.split("---").map { it.trim() }.filter { it.isNotEmpty() }
         val results = mutableListOf<String>()
 
@@ -23,9 +26,17 @@ object RowanEngine {
                 registerBuiltins(env)
                 var lastResult: RowanValue = RowanValue.RNull
                 for (expr in ast) { lastResult = eval(expr, env) }
-                val resStr = lastResult.toString()
-                if (resStr != "null" && resStr.isNotEmpty() && !resStr.startsWith("Class ")) {
-                    results.add(resStr)
+                
+                // ИСПРАВЛЕНИЕ: Забираем вывод из буфера
+                val bufferStr = outputBuffer.toString().trim()
+                if (bufferStr.isNotEmpty()) {
+                    results.add(bufferStr)
+                    outputBuffer.clear() // Очищаем для следующего блока
+                } else {
+                    val resStr = lastResult.toString()
+                    if (resStr != "null" && resStr.isNotEmpty() && !resStr.startsWith("Class ")) {
+                        results.add(resStr)
+                    }
                 }
             } catch (t: Throwable) {
                 val trace = t.stackTrace.take(3).joinToString("\n  → ") { "${it.fileName ?: "Unknown"}:${it.lineNumber}" }
@@ -80,7 +91,7 @@ object RowanEngine {
         var i = 0
         while (i < input.length) {
             when (val c = input[i]) {
-                ' ', '\t', '\n', '\r' -> i++
+                ' ', '\t', '\n', '\r', ',' -> i++ 
                 '#', ';' -> { while (i < input.length && input[i] != '\n') i++ }
                 '(', ')' -> { tokens.add(c.toString()); i++ }
                 '"' -> {
@@ -93,7 +104,7 @@ object RowanEngine {
                 }
                 else -> {
                     var j = i
-                    while (j < input.length && !" \t\n\r()\"#;".contains(input[j])) j++
+                    while (j < input.length && !" \t\n\r()\"#;,".contains(input[j])) j++
                     val tok = input.substring(i, j)
                     if (tok.isNotEmpty()) tokens.add(tok)
                     i = j
@@ -188,7 +199,6 @@ object RowanEngine {
                                 val newArgs = ast.subList(2, ast.size).mapNotNull { eval(it, env) }
                                 val initEnv = Environment().apply { 
                                     set("self", instance)
-                                    // ИСПРАВЛЕНО: Явно указан RowanValue.RNull для разрешения области видимости
                                     initMethod.params.forEachIndexed { idx, p -> set(p, newArgs.getOrElse(idx) { RowanValue.RNull }) }
                                 }
                                 for (expr in initMethod.body) { eval(expr, initEnv) }
@@ -202,7 +212,6 @@ object RowanEngine {
                             val callArgs = ast.subList(3, ast.size).mapNotNull { eval(it, env) }
                             val callEnv = Environment().apply { 
                                 set("self", obj)
-                                // ИСПРАВЛЕНО: Явно указан RowanValue.RNull для разрешения области видимости
                                 methodDef.params.forEachIndexed { idx, p -> set(p, callArgs.getOrElse(idx) { RowanValue.RNull }) }
                             }
                             var res: RowanValue = RowanValue.RNull
@@ -315,7 +324,14 @@ object RowanEngine {
         "nth" to { args -> (args.getOrNull(0) as? RowanValue.RList)?.v?.getOrNull(getLong(args.getOrNull(1)).toInt()) ?: RowanValue.RNull },
         "append" to { args -> (args.getOrNull(0) as? RowanValue.RList)?.v?.add(args.getOrNull(1) ?: RowanValue.RNull); args.getOrNull(0) ?: RowanValue.RNull },
         "len" to { args -> RowanValue.RNum((args.getOrNull(0) as? RowanValue.RList)?.v?.size?.toDouble() ?: 0.0) },
-        "print" to { args -> RowanValue.RString(args.joinToString(" ") { it.toString().trim('"') }) },
+        
+        // ИСПРАВЛЕНИЕ: print теперь реально печатает в буфер с переносом строки
+        "print" to { args -> 
+            val text = args.joinToString(" ") { it.toString().trim('"') }
+            outputBuffer.append(text).append("\n")
+            RowanValue.RString(text) 
+        },
+        
         "type" to { args -> 
             RowanValue.RString(when(args.getOrNull(0)) { 
                 is RowanValue.RNum -> "number"; is RowanValue.RRat -> "rational"; is RowanValue.RString -> "string"
