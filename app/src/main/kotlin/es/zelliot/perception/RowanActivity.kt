@@ -14,8 +14,6 @@ import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.view.ActionMode
 import android.view.GestureDetector
-import android.view.Menu
-import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -37,7 +35,6 @@ import androidx.core.graphics.drawable.IconCompat
 import es.zelliot.perceptron.databinding.ActivityRowanBinding
 import kotlinx.coroutines.*
 import java.util.regex.Pattern
-import kotlin.math.max
 
 class RowanActivity : AppCompatActivity() {
 
@@ -56,7 +53,7 @@ class RowanActivity : AppCompatActivity() {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 val deltaX = e2.x - (e1?.x ?: 0f)
-                if (Math.abs(deltaX) > Math.abs(e2.y - (e1?.y ?: 0f)) && Math.abs(deltaX) > 100f && Math.abs(velocityX) > 100f) {
+                if (kotlin.math.abs(deltaX) > kotlin.math.abs(e2.y - (e1?.y ?: 0f)) && kotlin.math.abs(deltaX) > 100f && kotlin.math.abs(velocityX) > 100f) {
                     if (deltaX < 0) { openSearchPanel(); return true } 
                     else if (isSearchPanelOpen) { closeSearchPanel(); return true }
                 }
@@ -118,7 +115,8 @@ class RowanActivity : AppCompatActivity() {
     }
     
     private fun showExitConfirmationDialog() {
-        AlertDialog.Builder(ContextThemeWrapper(this, R.style.Theme_AppCompat_Dialog))
+        // ИСПРАВЛЕНО: используем стандартный системный стиль диалога
+        AlertDialog.Builder(ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_Dialog_Alert))
             .setTitle("Exit Rowan?")
             .setMessage("Terminate the engine?")
             .setPositiveButton("YES") { _, _ -> finishAffinity(); kotlin.system.exitProcess(0) }
