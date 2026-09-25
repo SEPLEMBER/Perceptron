@@ -26,7 +26,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/rowan_app_header"
+                android:text="ROWAN" 
                 android:textColor="#00E5FF"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
@@ -61,13 +61,19 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <Button android:id="@+id/btnClear" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="@string/btn_clear" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
-                    <Button android:id="@+id/btnExecute" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="@string/btn_execute" android:textColor="#A8FF60" android:backgroundTint="#224424" android:fontFamily="monospace" android:textSize="12sp" android:textStyle="bold" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#A8FF60" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="4" />
-                    <Button android:id="@+id/btnStop" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="@string/btn_stop" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
+                    <Button android:id="@+id/btnClear" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Clear" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
+                    
+                    <Button android:id="@+id/btnExecute" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="Execute" android:textColor="#A8FF60" android:backgroundTint="#224424" android:fontFamily="monospace" android:textSize="12sp" android:textStyle="bold" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#A8FF60" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="4" />
+                    
+                    <Button android:id="@+id/btnStop" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Stop" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
+                    
                     <View android:layout_width="1dp" android:layout_height="20dp" android:background="#2C2F33" android:layout_marginStart="4dp" android:layout_marginEnd="8dp" />
-                    <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="@string/btn_open" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnShortcut" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="@string/btn_shortcut" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnExit" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="@string/btn_exit" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
+                    
+                    <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Open" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    
+                    <Button android:id="@+id/btnShortcut" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Shortcut" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    
+                    <Button android:id="@+id/btnExit" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Exit" android:textColor="#FF3355" android:backgroundTint="#4A1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" android:shadowColor="#FF3355" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
                 </LinearLayout>
             </HorizontalScrollView>
         </LinearLayout>
@@ -93,7 +99,7 @@
                 android:lineSpacingExtra="6dp"
                 android:gravity="top|start"
                 android:padding="16dp"
-                android:hint="@string/hint_script_rowan"
+                android:hint="# Write Rowan code here..." 
                 android:inputType="textMultiLine|textNoSuggestions"
                 android:importantForAutofill="no"
                 android:freezesText="false"
@@ -103,7 +109,7 @@
                 android:typeface="monospace" />
         </FrameLayout>
 
-        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ (Без изменений, идеальна) -->
+        <!-- 3. ПАНЕЛЬ ПОИСКА И ЗАМЕНЫ -->
         <LinearLayout
             android:id="@+id/searchPanel"
             android:layout_width="match_parent"
@@ -113,10 +119,10 @@
             android:padding="10dp"
             android:visibility="gone"
             android:elevation="8dp">
-            <!-- (Содержимое панели поиска идентично оригиналу, опущено для краткости, но оно есть в проекте) -->
+            
              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                <EditText android:id="@+id/etSearch" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Поиск..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
-                <EditText android:id="@+id/etReplace" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Замена..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
+                <EditText android:id="@+id/etSearch" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Search..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
+                <EditText android:id="@+id/etReplace" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Replace..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
             </LinearLayout>
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
                 <Button android:id="@+id/btnSearchPrev" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginEnd="2dp" android:text="&lt;" android:textColor="#00E5FF" android:backgroundTint="#0A0A0A" android:fontFamily="monospace" android:textSize="16sp" android:textStyle="bold" style="?android:attr/borderlessButtonStyle" />
@@ -141,7 +147,6 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="UTF-8" android:textColor="#00E5FF" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" android:shadowColor="#00E5FF" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="2" />
             <View android:layout_width="1dp" android:layout_height="12dp" android:background="#2C2F33" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" />
             
-            <!-- ИЗМЕНЕНИЕ: ROWAN вместо PERCEPTRON -->
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ROWAN" android:textColor="#C792EA" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" android:shadowColor="#C792EA" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="2" />
             
             <View android:layout_width="1dp" android:layout_height="12dp" android:background="#2C2F33" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" />
@@ -151,20 +156,20 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- OVERLAY RESULTS (Без изменений, идеально) -->
+    <!-- OVERLAY RESULTS -->
     <View android:id="@+id/dimView" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#E6000000" android:visibility="gone" android:clickable="true" android:focusable="true" />
     <FrameLayout android:id="@+id/resultContainer" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_gravity="center" android:padding="24dp" android:clipChildren="false" android:clipToPadding="false">
         <LinearLayout android:id="@+id/overlayResult" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center" android:background="#121212" android:orientation="vertical" android:padding="24dp" android:visibility="gone" android:elevation="16dp" android:outlineProvider="background" android:clipToOutline="true">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="16dp">
                 <View android:layout_width="4dp" android:layout_height="20dp" android:background="#C792EA" android:layout_marginEnd="12dp" />
-                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/result_header" android:textColor="#C792EA" android:textStyle="bold" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" android:textAllCaps="true" android:shadowColor="#C792EA" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="RESULT" android:textColor="#C792EA" android:textStyle="bold" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" android:textAllCaps="true" android:shadowColor="#C792EA" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="3" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OUTPUT" android:textColor="#00E5FF" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.1" android:shadowColor="#00E5FF" android:shadowDx="0" android:shadowDy="0" android:shadowRadius="2" />
             </LinearLayout>
             <TextView android:id="@+id/tvResultContent" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:minHeight="150dp" android:maxHeight="400dp" android:scrollbars="vertical" android:textColor="#00E5FF" android:fontFamily="monospace" android:textSize="14sp" android:lineSpacingExtra="4dp" android:freezesText="false" android:saveEnabled="false" android:background="#0A0A0A" android:padding="16dp" android:textIsSelectable="true" android:scrollbarThumbVertical="@android:color/darker_gray" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="20dp">
-                <Button android:id="@+id/btnCopyResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Копировать" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                <Button android:id="@+id/btnExpandResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Расширить" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                <Button android:id="@+id/btnCloseResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:text="Закрыть" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnCopyResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Copy" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnExpandResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Expand" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnCloseResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:text="Close" android:textColor="#A9B7C6" android:backgroundTint="#1E1E1E" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
