@@ -10,52 +10,42 @@ object RowanEngine {
 
     fun evaluate(script: String): String {
         memory.clear()
-        // 1. Разделяем скрипт на независимые блоки по "---"
         val chunks = script.split("---").map { it.trim() }.filter { it.isNotEmpty() }
         val results = mutableListOf<String>()
 
         for ((index, chunk) in chunks.withIndex()) {
-            if (chunks.size > 1) {
-                results.add("▶ ЗАПУСК БЛОКА ${index + 1} из ${chunks.size}")
-            }
-            
+            if (chunks.size > 1) results.add("▶ ЗАПУСК БЛОКА ${index + 1} из ${chunks.size}")
             try {
                 val tokens = tokenize(chunk)
                 if (tokens.isEmpty()) continue
-                
                 val ast = parse(tokens)
-                val env = Environment() // Изолированное окружение для каждого блока
+                val env = Environment()
                 registerBuiltins(env)
-                
-                // 2. ИСПРАВЛЕНИЕ: Последовательно выполняем все выражения верхнего уровня
                 var lastResult: RowanValue = RowanValue.RNull
-                for (expr in ast) {
-                    lastResult = eval(expr, env)
-                }
-                
+                for (expr in ast) { lastResult = eval(expr, env) }
                 val resStr = lastResult.toString()
-                // Выводим результат, если он не пустой и не null (print и так добавляет строки)
                 if (resStr != "null" && resStr.isNotEmpty() && !resStr.startsWith("Class ")) {
                     results.add(resStr)
                 }
             } catch (t: Throwable) {
-                // 3. ИЗОЛЯЦИЯ ОШИБОК: Сбой в одном блоке не роняет остальные
                 val trace = t.stackTrace.take(3).joinToString("\n  → ") { "${it.fileName ?: "Unknown"}:${it.lineNumber}" }
                 results.add("⚠️ КРИТИЧЕСКАЯ ОШИБКА В БЛОКЕ ${index + 1}: ${t.javaClass.simpleName}\n  Сообщение: ${t.message}\n  Стек:\n  $trace")
             }
         }
-        
         return if (results.isEmpty()) "Выполнено успешно (нет вывода)" else results.joinToString("\n\n")
     }
+
+    data class MethodDef(val params: List<String>, val body: List<Any?>)
 
     sealed class RowanValue {
         object RNull : RowanValue() { override fun toString() = "null" }
         data class RNum(val v: Double) : RowanValue() { 
-            override fun toString() = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString() 
+            override fun toString() = if (v == v.toLong().toDouble() && !v.isInfinite() && !v.isNaN()) v.toLong().toString() else v.toString() 
         }
         data class RRat(val num: Long, val den: Long) : RowanValue() {
             init { require(den != 0L) { "Division by zero" } }
             fun simplify(): RRat {
+                if (num == 0L) return RRat(0, 1)
                 val g = gcd(abs(num), abs(den))
                 val sign = if (den < 0) -1L else 1L
                 return RRat((num / g) * sign, abs(den) / g)
@@ -66,7 +56,7 @@ object RowanEngine {
         }
         data class RString(val v: String) : RowanValue() { override fun toString() = "\"$v\"" }
         data class RList(val v: MutableList<RowanValue>) : RowanValue() { override fun toString() = "(${v.joinToString(" ")})" }
-        data class RObject(val className: String, val fields: MutableMap<String, RowanValue>, val methods: Map<String, List<Any?>>) : RowanValue() {
+        data class RObject(val className: String, val fields: MutableMap<String, RowanValue>, val methods: Map<String, MethodDef>) : RowanValue() {
             override fun toString() = "<Object:$className>"
         }
         data class RFunction(val params: List<String>, val body: List<Any?>, val closure: Environment) : RowanValue() {
@@ -91,7 +81,7 @@ object RowanEngine {
         while (i < input.length) {
             when (val c = input[i]) {
                 ' ', '\t', '\n', '\r' -> i++
-                '#' -> { while (i < input.length && input[i] != '\n') i++ }
+                '#', ';' -> { while (i < input.length && input[i] != '\n') i++ } // ИСПРАВЛЕНО: поддержка ; для комментариев
                 '(', ')' -> { tokens.add(c.toString()); i++ }
                 '"' -> {
                     var j = i + 1; val sb = StringBuilder()
@@ -103,8 +93,10 @@ object RowanEngine {
                 }
                 else -> {
                     var j = i
-                    while (j < input.length && !" \t\n\r()\"#".contains(input[j])) j++
-                    tokens.add(input.substring(i, j)); i = j
+                    while (j < input.length && !" \t\n\r()\"#;".contains(input[j])) j++
+                    val tok = input.substring(i, j)
+                    if (tok.isNotEmpty()) tokens.add(tok) // Защита от пустых токенов
+                    i = j
                 }
             }
         }
@@ -133,23 +125,22 @@ object RowanEngine {
     }
 
     private fun parseAtom(token: String): Any? {
+        if (token.isEmpty()) return RowanValue.RNull
         if (token.startsWith("\"") && token.endsWith("\"")) return RowanValue.RString(token.substring(1, token.length - 1))
-        if (token.contains("/") && token.count { it == '/' } == 1 && token.replace("-", "").replace("/", "").all { it.isDigit() }) {
+        if (token.contains("/") && token.count { it == '/' } == 1) {
             val parts = token.split("/")
-            return RowanValue.RRat(parts[0].toLong(), parts[1].toLong()).simplify()
+            if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
+                val p0 = parts[0].replace("-", "")
+                val p1 = parts[1]
+                if (p0.all { it.isDigit() } && p1.all { it.isDigit() }) {
+                    return RowanValue.RRat(parts[0].toLong(), parts[1].toLong()).simplify()
+                }
+            }
         }
         if (token.matches(Regex("-?\\d+(\\.\\d+)?"))) {
             return RowanValue.RNum(token.toDouble())
         }
         return token
-    }
-
-    private fun astToValue(ast: Any?): RowanValue = when (ast) {
-        is RowanValue -> ast
-        is List<*> -> RowanValue.RList(ast.mapNotNull { astToValue(it) }.toMutableList())
-        is String -> RowanValue.RString(ast)
-        is Number -> RowanValue.RNum(ast.toDouble())
-        else -> RowanValue.RNull
     }
 
     private fun eval(ast: Any?, env: Environment): RowanValue {
@@ -162,7 +153,6 @@ object RowanEngine {
                         "do" -> { var res: RowanValue = RowanValue.RNull; for (i in 1 until ast.size) res = eval(ast[i], env); res }
                         "set" -> { val v = eval(ast[2], env); env.set(ast[1] as String, v); v }
                         "let" -> { val newEnv = env.extend(); val v = eval(ast[2], newEnv); newEnv.set(ast[1] as String, v); v }
-                        "quote" -> astToValue(ast.subList(1, ast.size))
                         "if" -> { val cond = eval(ast[1], env); if (isTruthy(cond)) eval(ast[2], env) else if (ast.size > 3) eval(ast[3], env) else RowanValue.RNull }
                         "while" -> { 
                             var res: RowanValue = RowanValue.RNull
@@ -179,11 +169,14 @@ object RowanEngine {
                         }
                         "class" -> {
                             val name = ast[1] as? String ?: "Unknown"
-                            val methods = mutableMapOf<String, List<Any?>>()
+                            val methods = mutableMapOf<String, MethodDef>()
                             for (i in 2 until ast.size) {
                                 val methodDef = ast[i] as? List<*> ?: continue
                                 val mName = methodDef[0] as? String ?: continue
-                                methods[mName] = methodDef.subList(1, methodDef.size)
+                                // ИСПРАВЛЕНО: params берутся из второго элемента, body - всё что после
+                                val params = (methodDef.getOrNull(1) as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                                val body = methodDef.subList(2, methodDef.size)
+                                methods[mName] = MethodDef(params, body)
                             }
                             env.set(name, RowanValue.RObject(name, mutableMapOf(), methods))
                             RowanValue.RString("Class '$name' defined")
@@ -191,18 +184,31 @@ object RowanEngine {
                         "new" -> {
                             val cls = env.get(ast[1] as String) as? RowanValue.RObject ?: throw Exception("Not a class: ${ast[1]}")
                             val instance = RowanValue.RObject(cls.className, mutableMapOf(), cls.methods)
-                            if (cls.methods.containsKey("init")) {
-                                val initEnv = Environment().apply { set("self", instance) }
-                                eval(cls.methods["init"], initEnv)
+                            val initMethod = cls.methods["init"]
+                            if (initMethod != null) {
+                                // ИСПРАВЛЕНО: передача аргументов в конструктор
+                                val newArgs = ast.subList(2, ast.size).mapNotNull { eval(it, env) }
+                                val initEnv = Environment().apply { 
+                                    set("self", instance)
+                                    initMethod.params.forEachIndexed { idx, p -> set(p, newArgs.getOrElse(idx) { RNull }) }
+                                }
+                                for (expr in initMethod.body) { eval(expr, initEnv) }
                             }
                             instance
                         }
                         "call" -> {
                             val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object")
                             val methodName = ast[2] as? String ?: throw Exception("Method name must be a symbol")
-                            val methodBody = obj.methods[methodName] ?: throw Exception("Method '$methodName' not found")
-                            val callEnv = Environment().apply { set("self", obj) }
-                            eval(methodBody, callEnv)
+                            val methodDef = obj.methods[methodName] ?: throw Exception("Method '$methodName' not found")
+                            // ИСПРАВЛЕНО: передача аргументов в метод
+                            val callArgs = ast.subList(3, ast.size).mapNotNull { eval(it, env) }
+                            val callEnv = Environment().apply { 
+                                set("self", obj)
+                                methodDef.params.forEachIndexed { idx, p -> set(p, callArgs.getOrElse(idx) { RNull }) }
+                            }
+                            var res: RowanValue = RowanValue.RNull
+                            for (expr in methodDef.body) { res = eval(expr, callEnv) }
+                            res
                         }
                         "get" -> { val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object"); obj.fields[ast[2] as String] ?: RowanValue.RNull }
                         "put" -> { val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object"); obj.fields[ast[2] as String] = eval(ast[3], env); RowanValue.RNull }
@@ -215,7 +221,9 @@ object RowanEngine {
                                 is RowanValue.RFunction -> {
                                     val callEnv = func.closure.extend()
                                     func.params.forEachIndexed { i, p -> callEnv.set(p, args.getOrElse(i) { RowanValue.RNull }) }
-                                    eval(func.body, callEnv)
+                                    var res: RowanValue = RowanValue.RNull
+                                    for (expr in func.body) { res = eval(expr, callEnv) }
+                                    res
                                 }
                                 is RowanValue.RBuiltin -> func.fn(args)
                                 else -> RowanValue.RString("Error: '$first' is not callable")
