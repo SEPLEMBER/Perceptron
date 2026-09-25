@@ -26,12 +26,10 @@ object RowanEngine {
     sealed class RowanValue {
         object RNull : RowanValue() { override fun toString() = "null" }
         
-        // Быстрый Double по умолчанию (как в K/Python)
         data class RNum(val v: Double) : RowanValue() { 
             override fun toString() = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString() 
         }
         
-        // Легковесный Rational на Long (в 100+ раз быстрее BigInteger, но дает точность)
         data class RRat(val num: Long, val den: Long) : RowanValue() {
             init { require(den != 0L) { "Division by zero" } }
             fun simplify(): RRat {
@@ -59,10 +57,11 @@ object RowanEngine {
         private val vars = mutableMapOf<String, RowanValue>()
         fun set(name: String, value: RowanValue) { vars[name] = value }
         fun get(name: String): RowanValue = vars[name] ?: parent?.get(name) ?: throw Exception("Undefined: $name")
+        fun has(name: String): Boolean = vars.containsKey(name) || (parent?.has(name) ?: false) // ИСПРАВЛЕНО: доступ к проверке
         fun extend(): Environment = Environment(this)
     }
 
-    // --- 3. ТОКЕНИЗАТОР (Без изменений, работает молниеносно) ---
+    // --- 3. ТОКЕНИЗАТОР ---
     private fun tokenize(input: String): List<String> {
         val tokens = mutableListOf<String>()
         var i = 0
@@ -113,7 +112,6 @@ object RowanEngine {
 
     private fun parseAtom(token: String): Any {
         if (token.startsWith("\"") && token.endsWith("\"")) return RowanValue.RString(token.substring(1, token.length - 1))
-        // Если есть '/', парсим как Rational, иначе как Double
         if (token.contains("/") && token.count { it == '/' } == 1 && token.replace("-", "").replace("/", "").all { it.isDigit() }) {
             val parts = token.split("/")
             return RowanValue.RRat(parts[0].toLong(), parts[1].toLong()).simplify()
@@ -125,7 +123,8 @@ object RowanEngine {
     }
 
     // --- 5. ВЫЧИСЛИТЕЛЬ (EVALUATOR) ---
-    private fun eval(ast: Any, env: Environment): RowanValue {
+    // ИСПРАВЛЕНО: ast теперь Any?, чтобы корректно обрабатывать элементы List<*>
+    private fun eval(ast: Any?, env: Environment): RowanValue {
         return when (ast) {
             is List<*> -> {
                 if (ast.isEmpty()) RowanValue.RNull
@@ -135,7 +134,7 @@ object RowanEngine {
                         "do" -> { var res: RowanValue = RowanValue.RNull; for (i in 1 until ast.size) res = eval(ast[i], env); res }
                         "set" -> { val v = eval(ast[2], env); env.set(ast[1] as String, v); v }
                         "let" -> { val newEnv = env.extend(); val v = eval(ast[2], newEnv); newEnv.set(ast[1] as String, v); v }
-                        "quote" -> RowanValue.RList(ast.subList(1, ast.size).map { it as? String ?: (it as List<*>) }.toMutableList())
+                        "quote" -> RowanValue.RList(ast.subList(1, ast.size).mapNotNull { it as? String ?: (it as? List<*>) }.toMutableList())
                         "if" -> { val cond = eval(ast[1], env); if (isTruthy(cond)) eval(ast[2], env) else if (ast.size > 3) eval(ast[3], env) else RowanValue.RNull }
                         "while" -> { 
                             var res: RowanValue = RowanValue.RNull
@@ -170,14 +169,14 @@ object RowanEngine {
                         "break" -> throw ControlFlow("break")
                         "continue" -> throw ControlFlow("continue")
                         else -> { 
-                            val func = if (env.vars.containsKey(first)) env.get(first) else getBuiltin(first)
+                            val func = if (env.has(first)) env.get(first) else getBuiltin(first)
                             val args = ast.subList(1, ast.size).map { eval(it, env) }
                             when (func) {
                                 is RowanValue.RFunction -> {
                                     val callEnv = func.closure.extend()
                                     func.params.forEachIndexed { i, p -> callEnv.set(p, args.getOrElse(i) { RowanValue.RNull }) }
                                     eval(func.body, callEnv)
-                }
+                                }
                                 is BuiltinFunc -> func.fn(args)
                                 else -> throw Exception("Not a function: $first")
                             }
@@ -187,7 +186,6 @@ object RowanEngine {
             }
             is String -> env.get(ast)
             is RowanValue -> ast
-            is List<*> -> RowanValue.RList(ast.map { eval(it, env) }.toMutableList())
             else -> RowanValue.RNull
         }
     }
@@ -195,12 +193,11 @@ object RowanEngine {
     private fun isTruthy(v: RowanValue): Boolean = v !is RowanValue.RNull && v != RowanValue.RNum(0.0) && v != RowanValue.RString("false")
     class ControlFlow(val type: String) : Exception()
 
-    // --- 6. ВСТРОЕННЫЕ ФУНКЦИИ (Оптимизированные) ---
+    // --- 6. ВСТРОЕННЫЕ ФУНКЦИИ ---
     private fun getBuiltin(name: String): BuiltinFunc = builtins[name] ?: throw Exception("Unknown: $name")
     private fun registerBuiltins(env: Environment) { builtins.forEach { (name, func) -> env.set(name, func) } }
     private data class BuiltinFunc(val fn: (List<RowanValue>) -> RowanValue)
 
-    // Хелпер для безопасной математики
     private fun mathOp(args: List<RowanValue>, doubleOp: (Double, Double) -> Double, ratOp: (Long, Long, Long, Long) -> RowanValue.RRat): RowanValue {
         if (args.all { it is RowanValue.RNum }) {
             return RowanValue.RNum(args.drop(1).fold((args[0] as RowanValue.RNum).v) { acc, v -> doubleOp(acc, (v as RowanValue.RNum).v) })
@@ -211,14 +208,12 @@ object RowanEngine {
                 ratOp(acc.num, acc.den, r.num, r.den).simplify()
             }
         }
-        // Смешанные типы: приводим к Double для скорости (или к RRat, если нужна строгая точность)
         return RowanValue.RNum(args.drop(1).fold((args[0] as RowanValue.RNum).v) { acc, v -> 
             doubleOp(acc, when(v) { is RowanValue.RNum -> v.v; is RowanValue.RRat -> v.toDouble(); else -> 0.0 }) 
         })
     }
 
     private val builtins = mapOf(
-        // Быстрая математика (Double по умолчанию, RRat при необходимости)
         "+" to BuiltinFunc { args -> mathOp(args, { a, b -> a + b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 + n2 * d1, d1 * d2) }) },
         "-" to BuiltinFunc { args -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(-(args[0] as RowanValue.RNum).v)
@@ -231,19 +226,17 @@ object RowanEngine {
             else it 
         }},
         
-        // Явное создание Rational (когда нужна точность)
         "rat" to BuiltinFunc { args -> RowanValue.RRat((args[0] as RowanValue.RNum).v.toLong(), (args[1] as RowanValue.RNum).v.toLong()).simplify() },
         "float" to BuiltinFunc { args -> RowanValue.RNum(when(args[0]) { is RowanValue.RRat -> args[0].toDouble(); is RowanValue.RNum -> args[0].v; else -> 0.0 }) },
 
-        // Битовые операции (работают только с целыми Double/Long)
-        "&" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong() and (args[1] as RowanValue.RNum).v.toLong().toDouble()) },
-        "|" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong() or (args[1] as RowanValue.RNum).v.toLong().toDouble()) },
-        "^" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong() xor (args[1] as RowanValue.RNum).v.toLong().toDouble()) },
-        "<<" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong() shl (args[1] as RowanValue.RNum).v.toLong().toInt().toDouble()) },
-        ">>" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong() shr (args[1] as RowanValue.RNum).v.toLong().toInt().toDouble()) },
+        // ИСПРАВЛЕНО: корректное приведение типов для битовых операций
+        "&" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() and (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
+        "|" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() or (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
+        "^" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() xor (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
+        "<<" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() shl (args[1] as RowanValue.RNum).v.toInt()).toDouble()) },
+        ">>" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() shr (args[1] as RowanValue.RNum).v.toInt()).toDouble()) },
         "count-bits" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong().countOneBits().toDouble()) },
 
-        // Сравнение
         "==" to BuiltinFunc { args -> if (args[0].toString() == args[1].toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
         "!=" to BuiltinFunc { args -> if (args[0].toString() != args[1].toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
         "<" to BuiltinFunc { args -> if (toNum(args[0]) < toNum(args[1])) RowanValue.RNum(1.0) else RowanValue.RNull },
@@ -254,14 +247,12 @@ object RowanEngine {
         "or" to BuiltinFunc { args -> if (isTruthy(args[0])) args[0] else args[1] },
         "not" to BuiltinFunc { args -> if (isTruthy(args[0])) RowanValue.RNull else RowanValue.RNum(1.0) },
 
-        // Память (Brainfuck style, но с адресацией Long)
         "store" to BuiltinFunc { args -> memory[(args[0] as RowanValue.RNum).v.toLong()] = args[1]; args[1] },
         "load" to BuiltinFunc { args -> memory[(args[0] as RowanValue.RNum).v.toLong()] ?: RowanValue.RNum(0.0) },
         "alloc" to BuiltinFunc { args -> val addr = (memory.keys.maxOrNull() ?: -1L) + 1L; for(i in 0 until (args[0] as RowanValue.RNum).v.toLong()) memory[addr+i] = RowanValue.RNull; RowanValue.RNum(addr.toDouble()) },
         "free" to BuiltinFunc { args -> for(i in 0 until (args[0] as RowanValue.RNum).v.toLong()) memory.remove((args[1] as RowanValue.RNum).v.toLong() + i); RowanValue.RNull },
         "ptr" to BuiltinFunc { args -> RowanValue.RNum(((memory.keys.maxOrNull() ?: -1L) + 1L).toDouble()) },
 
-        // Random / SecRandom (Быстрые)
         "random" to BuiltinFunc { args -> 
             if (args.size == 2) RowanValue.RNum(Random.nextDouble((args[0] as RowanValue.RNum).v, (args[1] as RowanValue.RNum).v))
             else RowanValue.RNum(Random.nextDouble())
@@ -269,7 +260,6 @@ object RowanEngine {
         "secrandom" to BuiltinFunc { args -> RowanValue.RNum(secureRandom.nextDouble()) },
         "randint" to BuiltinFunc { args -> RowanValue.RNum(Random.nextLong((args[0] as RowanValue.RNum).v.toLong(), (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
 
-        // Структуры данных и Утилиты
         "list" to BuiltinFunc { args -> RowanValue.RList(args.toMutableList()) },
         "nth" to BuiltinFunc { args -> (args[0] as RowanValue.RList).v[(args[1] as RowanValue.RNum).v.toInt()] },
         "append" to BuiltinFunc { args -> (args[0] as RowanValue.RList).v.add(args[1]); args[0] },
@@ -279,6 +269,7 @@ object RowanEngine {
         "cast" to BuiltinFunc { args -> 
             val v = args[0]; val t = (args[1] as RowanValue.RString).v
             when(t) {
+                // ИСПРАВЛЕНО: v.v.toDoubleOrNull() для корректного доступа к строковому значению
                 "number" -> if (v is RowanValue.RString) RowanValue.RNum(v.v.toDoubleOrNull() ?: 0.0) else if (v is RowanValue.RRat) RowanValue.RNum(v.toDouble()) else v
                 "string" -> RowanValue.RString(v.toString())
                 else -> v
