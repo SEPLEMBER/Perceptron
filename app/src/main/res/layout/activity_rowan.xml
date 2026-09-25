@@ -79,6 +79,8 @@
                 <View android:layout_width="4dp" android:layout_height="match_parent" android:layout_gravity="center_horizontal" android:background="#1F1F1F" />
             </LinearLayout>
             <View android:layout_width="1dp" android:layout_height="match_parent" android:layout_gravity="start" android:layout_marginStart="24dp" android:background="#2C2F33" />
+            
+            <!-- ИСПРАВЛЕНО: одинарные кавычки для атрибута hint, чтобы избежать конфликта с двойными кавычками внутри -->
             <EditText
                 android:id="@+id/etScript"
                 android:layout_width="match_parent"
@@ -92,7 +94,7 @@
                 android:lineSpacingExtra="6dp"
                 android:gravity="top|start"
                 android:padding="16dp"
-                android:hint="# Write Rowan code here...\n(do\n  (print \"Hello Rowan\")\n)"
+                android:hint='# Write Rowan code here...\n(do\n  (print "Hello Rowan")\n)'
                 android:inputType="textMultiLine|textNoSuggestions"
                 android:importantForAutofill="no"
                 android:freezesText="false"
@@ -112,10 +114,12 @@
             android:padding="10dp"
             android:visibility="gone"
             android:elevation="8dp">
+            
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
                 <EditText android:id="@+id/etSearch" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Search..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
                 <EditText android:id="@+id/etReplace" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:background="#0F0F0F" android:textColor="#00E5FF" android:textColorHint="#005F6B" android:hint="Replace..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
             </LinearLayout>
+            
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
                 <Button android:id="@+id/btnSearchPrev" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginEnd="2dp" android:text="&lt;" android:textColor="#00E5FF" android:backgroundTint="#0A0A0A" android:fontFamily="monospace" android:textSize="16sp" android:textStyle="bold" style="?android:attr/borderlessButtonStyle" />
                 <Button android:id="@+id/btnSearchNext" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="2dp" android:layout_marginEnd="4dp" android:text="&gt;" android:textColor="#00E5FF" android:backgroundTint="#0A0A0A" android:fontFamily="monospace" android:textSize="16sp" android:textStyle="bold" style="?android:attr/borderlessButtonStyle" />
