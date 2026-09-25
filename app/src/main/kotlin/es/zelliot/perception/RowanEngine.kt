@@ -17,7 +17,7 @@ object RowanEngine {
             registerBuiltins(env)
             val result = eval(ast, env)
             result.toString()
-        } catch (t: Throwable) { // ИСПРАВЛЕНО: Ловим ВСЕ ошибки (Throwable), предотвращая краш приложения
+        } catch (t: Throwable) { // Абсолютная защита: ловим ВСЕ ошибки, предотвращая краш приложения
             val trace = t.stackTrace.take(4).joinToString("\n  → ") { "${it.fileName ?: "Unknown"}:${it.lineNumber}" }
             "⚠️ CRITICAL ERROR: ${t.javaClass.simpleName}\n" +
             "Message: ${t.message ?: "Unknown error"}\n" +
@@ -43,7 +43,6 @@ object RowanEngine {
             private fun gcd(a: Long, b: Long): Long = if (b == 0L) a else gcd(b, a % b)
         }
         data class RString(val v: String) : RowanValue() { override fun toString() = "\"$v\"" }
-        // ИСПРАВЛЕНО: List<Any?> вместо List<Any> для совместимости с Kotlin List<*>
         data class RList(val v: MutableList<RowanValue>) : RowanValue() { override fun toString() = "(${v.joinToString(" ")})" }
         data class RObject(val className: String, val fields: MutableMap<String, RowanValue>, val methods: Map<String, List<Any?>>) : RowanValue() {
             override fun toString() = "<Object:$className>"
@@ -51,7 +50,7 @@ object RowanEngine {
         data class RFunction(val params: List<String>, val body: List<Any?>, val closure: Environment) : RowanValue() {
             override fun toString() = "<fn>"
         }
-        // ИСПРАВЛЕНО: Builtin теперь часть иерархии RowanValue, что решает ошибки типов в when()
+        // Встроенная функция теперь часть иерархии, что решает проблемы типов в when()
         data class RBuiltin(val name: String, val fn: (List<RowanValue>) -> RowanValue) : RowanValue() {
             override fun toString() = "<builtin:$name>"
         }
@@ -124,10 +123,9 @@ object RowanEngine {
         if (token.matches(Regex("-?\\d+(\\.\\d+)?"))) {
             return RowanValue.RNum(token.toDouble())
         }
-        return token // Символ (String)
+        return token
     }
 
-    // Хелпер для безопасного преобразования AST в RowanValue (для quote и т.д.)
     private fun astToValue(ast: Any?): RowanValue = when (ast) {
         is RowanValue -> ast
         is List<*> -> RowanValue.RList(ast.mapNotNull { astToValue(it) }.toMutableList())
@@ -159,7 +157,7 @@ object RowanEngine {
                         }
                         "fn" -> {
                             val params = (ast[1] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
-                            val body = ast.subList(2, ast.size) // List<Any?>
+                            val body = ast.subList(2, ast.size)
                             RowanValue.RFunction(params, body, env.extend())
                         }
                         "class" -> {
@@ -212,8 +210,11 @@ object RowanEngine {
     class ControlFlow(val type: String) : Exception()
 
     // --- 6. ВСТРОЕННЫЕ ФУНКЦИИ (Безопасные) ---
-    private fun getBuiltin(name: String): RowanValue = builtins[name] ?: RowanValue.RString("Error: Unknown builtin '$name'")
-    private fun registerBuiltins(env: Environment) { builtins.forEach { (name, fn) -> env.set(name, RowanValue.RBuiltin(name, fn)) } }
+    private fun getBuiltin(name: String): RowanValue = builtins[name]?.let { RowanValue.RBuiltin(name, it) } ?: RowanValue.RString("Error: Unknown builtin '$name'")
+    
+    private fun registerBuiltins(env: Environment) { 
+        builtins.forEach { (name, fn) -> env.set(name, RowanValue.RBuiltin(name, fn)) } 
+    }
 
     private fun mathOp(args: List<RowanValue>, doubleOp: (Double, Double) -> Double, ratOp: (Long, Long, Long, Long) -> RowanValue.RRat): RowanValue {
         if (args.all { it is RowanValue.RNum }) {
@@ -230,11 +231,11 @@ object RowanEngine {
         })
     }
 
-    // Хелпер для безопасного извлечения Double
     private fun getNum(v: RowanValue?): Double = when(v) { is RowanValue.RNum -> v.v; is RowanValue.RRat -> v.toDouble(); else -> 0.0 }
     private fun getLong(v: RowanValue?): Long = getNum(v).toLong()
 
-    private val builtins = mapOf<String, (List<RowanValue>) -> RowanValue>(
+    // ИСПРАВЛЕНО: Явное указание типа Map предотвращает ошибки вывода типов компилятором Kotlin
+    private val builtins: Map<String, (List<RowanValue>) -> RowanValue> = mapOf(
         "+" to { args -> mathOp(args, { a, b -> a + b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 + n2 * d1, d1 * d2) }) },
         "-" to { args -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(-(args[0] as RowanValue.RNum).v)
@@ -250,7 +251,6 @@ object RowanEngine {
         "rat" to { args -> RowanValue.RRat(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).simplify() },
         "float" to { args -> RowanValue.RNum(getNum(args.getOrNull(0))) },
 
-        // ИСПРАВЛЕНО: Абсолютно безопасные битовые операции без ClassCastException
         "&" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) and getLong(args.getOrNull(1))).toDouble()) },
         "|" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) or getLong(args.getOrNull(1))).toDouble()) },
         "^" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) xor getLong(args.getOrNull(1))).toDouble()) },
@@ -303,7 +303,6 @@ object RowanEngine {
                 is RowanValue.RBuiltin -> "builtin"; else -> "null" 
             }) 
         },
-        // ИСПРАВЛЕНО: Безопасный cast без ошибок компиляции
         "cast" to { args ->
             val target = args.getOrNull(0) ?: RowanValue.RNull
             val typeName = (args.getOrNull(1) as? RowanValue.RString)?.v ?: "string"
