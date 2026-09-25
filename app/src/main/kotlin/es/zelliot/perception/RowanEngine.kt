@@ -81,7 +81,7 @@ object RowanEngine {
         while (i < input.length) {
             when (val c = input[i]) {
                 ' ', '\t', '\n', '\r' -> i++
-                '#', ';' -> { while (i < input.length && input[i] != '\n') i++ } // ИСПРАВЛЕНО: поддержка ; для комментариев
+                '#', ';' -> { while (i < input.length && input[i] != '\n') i++ }
                 '(', ')' -> { tokens.add(c.toString()); i++ }
                 '"' -> {
                     var j = i + 1; val sb = StringBuilder()
@@ -95,7 +95,7 @@ object RowanEngine {
                     var j = i
                     while (j < input.length && !" \t\n\r()\"#;".contains(input[j])) j++
                     val tok = input.substring(i, j)
-                    if (tok.isNotEmpty()) tokens.add(tok) // Защита от пустых токенов
+                    if (tok.isNotEmpty()) tokens.add(tok)
                     i = j
                 }
             }
@@ -173,7 +173,6 @@ object RowanEngine {
                             for (i in 2 until ast.size) {
                                 val methodDef = ast[i] as? List<*> ?: continue
                                 val mName = methodDef[0] as? String ?: continue
-                                // ИСПРАВЛЕНО: params берутся из второго элемента, body - всё что после
                                 val params = (methodDef.getOrNull(1) as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
                                 val body = methodDef.subList(2, methodDef.size)
                                 methods[mName] = MethodDef(params, body)
@@ -186,11 +185,11 @@ object RowanEngine {
                             val instance = RowanValue.RObject(cls.className, mutableMapOf(), cls.methods)
                             val initMethod = cls.methods["init"]
                             if (initMethod != null) {
-                                // ИСПРАВЛЕНО: передача аргументов в конструктор
                                 val newArgs = ast.subList(2, ast.size).mapNotNull { eval(it, env) }
                                 val initEnv = Environment().apply { 
                                     set("self", instance)
-                                    initMethod.params.forEachIndexed { idx, p -> set(p, newArgs.getOrElse(idx) { RNull }) }
+                                    // ИСПРАВЛЕНО: Явно указан RowanValue.RNull для разрешения области видимости
+                                    initMethod.params.forEachIndexed { idx, p -> set(p, newArgs.getOrElse(idx) { RowanValue.RNull }) }
                                 }
                                 for (expr in initMethod.body) { eval(expr, initEnv) }
                             }
@@ -200,11 +199,11 @@ object RowanEngine {
                             val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object")
                             val methodName = ast[2] as? String ?: throw Exception("Method name must be a symbol")
                             val methodDef = obj.methods[methodName] ?: throw Exception("Method '$methodName' not found")
-                            // ИСПРАВЛЕНО: передача аргументов в метод
                             val callArgs = ast.subList(3, ast.size).mapNotNull { eval(it, env) }
                             val callEnv = Environment().apply { 
                                 set("self", obj)
-                                methodDef.params.forEachIndexed { idx, p -> set(p, callArgs.getOrElse(idx) { RNull }) }
+                                // ИСПРАВЛЕНО: Явно указан RowanValue.RNull для разрешения области видимости
+                                methodDef.params.forEachIndexed { idx, p -> set(p, callArgs.getOrElse(idx) { RowanValue.RNull }) }
                             }
                             var res: RowanValue = RowanValue.RNull
                             for (expr in methodDef.body) { res = eval(expr, callEnv) }
