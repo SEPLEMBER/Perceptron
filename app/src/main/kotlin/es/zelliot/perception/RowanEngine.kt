@@ -74,14 +74,15 @@ object RowanEngine {
                             "halt" -> throw ControlFlow("halt", eval(ast.getOrNull(1), env, depth + 1))
                             "yield" -> throw ControlFlow("yield", eval(ast.getOrNull(1), env, depth + 1))
                             
+                            // ИСПРАВЛЕНО: Функции теперь сохраняются в ТЕКУЩИЙ env, а не в newEnv
                             "fn" -> {
                                 if (ast.size >= 4 && ast[1] is String && ast[2] is List<*>) {
                                     val name = ast[1] as String
                                     val params = (ast[2] as List<*>).filterIsInstance<String>()
                                     val body = ast.subList(3, ast.size)
-                                    val newEnv = env.extend()
-                                    val func = RowanValue.RFunction(name, params, body, newEnv)
-                                    newEnv.set(name, func)
+                                    val closureEnv = env.extend()
+                                    val func = RowanValue.RFunction(name, params, body, closureEnv)
+                                    env.set(name, func) // ← ИСПРАВЛЕНО: сохраняем в текущий env
                                     func
                                 } else {
                                     val params = (ast.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
@@ -338,6 +339,16 @@ object RowanEngine {
     private fun parseAtom(token: String): Any? {
         if (token.isEmpty()) return RowanValue.RNull
         if (token.startsWith("\"") && token.endsWith("\"")) return RowanValue.RString(token.substring(1, token.length - 1))
+        
+        // ИСПРАВЛЕНО: Добавлена поддержка hex-чисел (0x12, 0xFF)
+        if (token.startsWith("0x", ignoreCase = true) || token.startsWith("0X")) {
+            return try {
+                RowanValue.RNum(token.substring(2).toLong(16).toDouble())
+            } catch (e: NumberFormatException) {
+                token
+            }
+        }
+        
         if (token.contains("/") && token.count { it == '/' } == 1) {
             val parts = token.split("/")
             if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
