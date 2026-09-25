@@ -17,19 +17,20 @@ object RowanEngine {
             registerBuiltins(env)
             val result = eval(ast, env)
             result.toString()
-        } catch (e: Exception) {
-            "Runtime Error: ${e.message}"
+        } catch (t: Throwable) { // ИСПРАВЛЕНО: Ловим ВСЕ ошибки (Throwable), предотвращая краш приложения
+            val trace = t.stackTrace.take(4).joinToString("\n  → ") { "${it.fileName ?: "Unknown"}:${it.lineNumber}" }
+            "⚠️ CRITICAL ERROR: ${t.javaClass.simpleName}\n" +
+            "Message: ${t.message ?: "Unknown error"}\n" +
+            "Trace:\n  $trace"
         }
     }
 
-    // --- 1. ОПТИМИЗИРОВАННЫЕ ТИПЫ ДАННЫХ ---
+    // --- 1. ОПТИМИЗИРОВАННЫЕ И БЕЗОПАСНЫЕ ТИПЫ ДАННЫХ ---
     sealed class RowanValue {
         object RNull : RowanValue() { override fun toString() = "null" }
-        
         data class RNum(val v: Double) : RowanValue() { 
             override fun toString() = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString() 
         }
-        
         data class RRat(val num: Long, val den: Long) : RowanValue() {
             init { require(den != 0L) { "Division by zero" } }
             fun simplify(): RRat {
@@ -41,14 +42,18 @@ object RowanEngine {
             fun toDouble() = num.toDouble() / den.toDouble()
             private fun gcd(a: Long, b: Long): Long = if (b == 0L) a else gcd(b, a % b)
         }
-
-        data class RString(val v: String) : RowanValue() { override fun toString() = v }
+        data class RString(val v: String) : RowanValue() { override fun toString() = "\"$v\"" }
+        // ИСПРАВЛЕНО: List<Any?> вместо List<Any> для совместимости с Kotlin List<*>
         data class RList(val v: MutableList<RowanValue>) : RowanValue() { override fun toString() = "(${v.joinToString(" ")})" }
-        data class RObject(val className: String, val fields: MutableMap<String, RowanValue>, val methods: Map<String, List<Any>>) : RowanValue() {
+        data class RObject(val className: String, val fields: MutableMap<String, RowanValue>, val methods: Map<String, List<Any?>>) : RowanValue() {
             override fun toString() = "<Object:$className>"
         }
-        data class RFunction(val params: List<String>, val body: List<Any>, val closure: Environment) : RowanValue() {
+        data class RFunction(val params: List<String>, val body: List<Any?>, val closure: Environment) : RowanValue() {
             override fun toString() = "<fn>"
+        }
+        // ИСПРАВЛЕНО: Builtin теперь часть иерархии RowanValue, что решает ошибки типов в when()
+        data class RBuiltin(val name: String, val fn: (List<RowanValue>) -> RowanValue) : RowanValue() {
+            override fun toString() = "<builtin:$name>"
         }
     }
 
@@ -56,8 +61,8 @@ object RowanEngine {
     class Environment(val parent: Environment? = null) {
         private val vars = mutableMapOf<String, RowanValue>()
         fun set(name: String, value: RowanValue) { vars[name] = value }
-        fun get(name: String): RowanValue = vars[name] ?: parent?.get(name) ?: throw Exception("Undefined: $name")
-        fun has(name: String): Boolean = vars.containsKey(name) || (parent?.has(name) ?: false) // ИСПРАВЛЕНО: доступ к проверке
+        fun get(name: String): RowanValue = vars[name] ?: parent?.get(name) ?: throw Exception("Undefined variable: '$name'")
+        fun has(name: String): Boolean = vars.containsKey(name) || (parent?.has(name) ?: false)
         fun extend(): Environment = Environment(this)
     }
 
@@ -89,14 +94,14 @@ object RowanEngine {
     }
 
     // --- 4. ПАРСЕР ---
-    private fun parse(tokens: List<String>): List<Any> {
+    private fun parse(tokens: List<String>): List<Any?> {
         var pos = 0
-        fun read(): Any {
+        fun read(): Any? {
             if (pos >= tokens.size) throw Exception("Unexpected EOF")
             val token = tokens[pos++]
             return when (token) {
                 "(" -> {
-                    val list = mutableListOf<Any>()
+                    val list = mutableListOf<Any?>()
                     while (pos < tokens.size && tokens[pos] != ")") list.add(read())
                     if (pos < tokens.size && tokens[pos] == ")") pos++
                     list
@@ -105,12 +110,12 @@ object RowanEngine {
                 else -> parseAtom(token)
             }
         }
-        val ast = mutableListOf<Any>()
+        val ast = mutableListOf<Any?>()
         while (pos < tokens.size) ast.add(read())
         return ast
     }
 
-    private fun parseAtom(token: String): Any {
+    private fun parseAtom(token: String): Any? {
         if (token.startsWith("\"") && token.endsWith("\"")) return RowanValue.RString(token.substring(1, token.length - 1))
         if (token.contains("/") && token.count { it == '/' } == 1 && token.replace("-", "").replace("/", "").all { it.isDigit() }) {
             val parts = token.split("/")
@@ -119,22 +124,30 @@ object RowanEngine {
         if (token.matches(Regex("-?\\d+(\\.\\d+)?"))) {
             return RowanValue.RNum(token.toDouble())
         }
-        return token
+        return token // Символ (String)
+    }
+
+    // Хелпер для безопасного преобразования AST в RowanValue (для quote и т.д.)
+    private fun astToValue(ast: Any?): RowanValue = when (ast) {
+        is RowanValue -> ast
+        is List<*> -> RowanValue.RList(ast.mapNotNull { astToValue(it) }.toMutableList())
+        is String -> RowanValue.RString(ast)
+        is Number -> RowanValue.RNum(ast.toDouble())
+        else -> RowanValue.RNull
     }
 
     // --- 5. ВЫЧИСЛИТЕЛЬ (EVALUATOR) ---
-    // ИСПРАВЛЕНО: ast теперь Any?, чтобы корректно обрабатывать элементы List<*>
     private fun eval(ast: Any?, env: Environment): RowanValue {
         return when (ast) {
             is List<*> -> {
                 if (ast.isEmpty()) RowanValue.RNull
                 else {
-                    val first = ast[0] as? String ?: throw Exception("Invalid call: $ast")
+                    val first = ast[0] as? String ?: return RowanValue.RString("Error: Invalid list head (expected symbol)")
                     when (first) {
                         "do" -> { var res: RowanValue = RowanValue.RNull; for (i in 1 until ast.size) res = eval(ast[i], env); res }
                         "set" -> { val v = eval(ast[2], env); env.set(ast[1] as String, v); v }
                         "let" -> { val newEnv = env.extend(); val v = eval(ast[2], newEnv); newEnv.set(ast[1] as String, v); v }
-                        "quote" -> RowanValue.RList(ast.subList(1, ast.size).mapNotNull { it as? String ?: (it as? List<*>) }.toMutableList())
+                        "quote" -> astToValue(ast.subList(1, ast.size))
                         "if" -> { val cond = eval(ast[1], env); if (isTruthy(cond)) eval(ast[2], env) else if (ast.size > 3) eval(ast[3], env) else RowanValue.RNull }
                         "while" -> { 
                             var res: RowanValue = RowanValue.RNull
@@ -144,41 +157,46 @@ object RowanEngine {
                             }
                             res 
                         }
-                        "fn" -> RowanValue.RFunction((ast[1] as List<*>).map { it as String }, ast.subList(2, ast.size), env.extend())
+                        "fn" -> {
+                            val params = (ast[1] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                            val body = ast.subList(2, ast.size) // List<Any?>
+                            RowanValue.RFunction(params, body, env.extend())
+                        }
                         "class" -> {
-                            val name = ast[1] as String
-                            val methods = mutableMapOf<String, List<Any>>()
+                            val name = ast[1] as? String ?: "Unknown"
+                            val methods = mutableMapOf<String, List<Any?>>()
                             for (i in 2 until ast.size) {
-                                val methodDef = ast[i] as List<*>
-                                methods[methodDef[0] as String] = methodDef.subList(1, methodDef.size)
+                                val methodDef = ast[i] as? List<*> ?: continue
+                                val mName = methodDef[0] as? String ?: continue
+                                methods[mName] = methodDef.subList(1, methodDef.size)
                             }
                             env.set(name, RowanValue.RObject(name, mutableMapOf(), methods))
-                            RowanValue.RString("Class $name defined")
+                            RowanValue.RString("Class '$name' defined")
                         }
                         "new" -> {
-                            val cls = env.get(ast[1] as String) as RowanValue.RObject
+                            val cls = env.get(ast[1] as String) as? RowanValue.RObject ?: throw Exception("Not a class: ${ast[1]}")
                             val instance = RowanValue.RObject(cls.className, mutableMapOf(), cls.methods)
                             if (cls.methods.containsKey("init")) {
                                 val initEnv = Environment().apply { set("self", instance) }
-                                eval(cls.methods["init"]!!, initEnv)
+                                eval(cls.methods["init"], initEnv)
                             }
                             instance
                         }
-                        "get" -> { val obj = eval(ast[1], env) as RowanValue.RObject; obj.fields[ast[2] as String] ?: RowanValue.RNull }
-                        "put" -> { val obj = eval(ast[1], env) as RowanValue.RObject; obj.fields[ast[2] as String] = eval(ast[3], env); RowanValue.RNull }
+                        "get" -> { val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object"); obj.fields[ast[2] as String] ?: RowanValue.RNull }
+                        "put" -> { val obj = eval(ast[1], env) as? RowanValue.RObject ?: throw Exception("Not an object"); obj.fields[ast[2] as String] = eval(ast[3], env); RowanValue.RNull }
                         "break" -> throw ControlFlow("break")
                         "continue" -> throw ControlFlow("continue")
                         else -> { 
                             val func = if (env.has(first)) env.get(first) else getBuiltin(first)
-                            val args = ast.subList(1, ast.size).map { eval(it, env) }
+                            val args = ast.subList(1, ast.size).mapNotNull { eval(it, env) }
                             when (func) {
                                 is RowanValue.RFunction -> {
                                     val callEnv = func.closure.extend()
                                     func.params.forEachIndexed { i, p -> callEnv.set(p, args.getOrElse(i) { RowanValue.RNull }) }
                                     eval(func.body, callEnv)
                                 }
-                                is BuiltinFunc -> func.fn(args)
-                                else -> throw Exception("Not a function: $first")
+                                is RowanValue.RBuiltin -> func.fn(args)
+                                else -> RowanValue.RString("Error: '$first' is not callable")
                             }
                         }
                     }
@@ -193,10 +211,9 @@ object RowanEngine {
     private fun isTruthy(v: RowanValue): Boolean = v !is RowanValue.RNull && v != RowanValue.RNum(0.0) && v != RowanValue.RString("false")
     class ControlFlow(val type: String) : Exception()
 
-    // --- 6. ВСТРОЕННЫЕ ФУНКЦИИ ---
-    private fun getBuiltin(name: String): BuiltinFunc = builtins[name] ?: throw Exception("Unknown: $name")
-    private fun registerBuiltins(env: Environment) { builtins.forEach { (name, func) -> env.set(name, func) } }
-    private data class BuiltinFunc(val fn: (List<RowanValue>) -> RowanValue)
+    // --- 6. ВСТРОЕННЫЕ ФУНКЦИИ (Безопасные) ---
+    private fun getBuiltin(name: String): RowanValue = builtins[name] ?: RowanValue.RString("Error: Unknown builtin '$name'")
+    private fun registerBuiltins(env: Environment) { builtins.forEach { (name, fn) -> env.set(name, RowanValue.RBuiltin(name, fn)) } }
 
     private fun mathOp(args: List<RowanValue>, doubleOp: (Double, Double) -> Double, ratOp: (Long, Long, Long, Long) -> RowanValue.RRat): RowanValue {
         if (args.all { it is RowanValue.RNum }) {
@@ -208,74 +225,98 @@ object RowanEngine {
                 ratOp(acc.num, acc.den, r.num, r.den).simplify()
             }
         }
-        return RowanValue.RNum(args.drop(1).fold((args[0] as RowanValue.RNum).v) { acc, v -> 
+        return RowanValue.RNum(args.drop(1).fold((args[0] as? RowanValue.RNum)?.v ?: 0.0) { acc, v -> 
             doubleOp(acc, when(v) { is RowanValue.RNum -> v.v; is RowanValue.RRat -> v.toDouble(); else -> 0.0 }) 
         })
     }
 
-    private val builtins = mapOf(
-        "+" to BuiltinFunc { args -> mathOp(args, { a, b -> a + b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 + n2 * d1, d1 * d2) }) },
-        "-" to BuiltinFunc { args -> 
+    // Хелпер для безопасного извлечения Double
+    private fun getNum(v: RowanValue?): Double = when(v) { is RowanValue.RNum -> v.v; is RowanValue.RRat -> v.toDouble(); else -> 0.0 }
+    private fun getLong(v: RowanValue?): Long = getNum(v).toLong()
+
+    private val builtins = mapOf<String, (List<RowanValue>) -> RowanValue>(
+        "+" to { args -> mathOp(args, { a, b -> a + b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 + n2 * d1, d1 * d2) }) },
+        "-" to { args -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(-(args[0] as RowanValue.RNum).v)
             else mathOp(args, { a, b -> a - b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 - n2 * d1, d1 * d2) }) 
         },
-        "*" to BuiltinFunc { args -> mathOp(args, { a, b -> a * b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * n2, d1 * d2) }) },
-        "/" to BuiltinFunc { args -> mathOp(args.drop(1), { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) }).let { 
+        "*" to { args -> mathOp(args, { a, b -> a * b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * n2, d1 * d2) }) },
+        "/" to { args -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(1.0 / (args[0] as RowanValue.RNum).v) 
             else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(r.den, r.num).simplify() }
-            else it 
-        }},
+            else mathOp(args.drop(1), { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
+        },
         
-        "rat" to BuiltinFunc { args -> RowanValue.RRat((args[0] as RowanValue.RNum).v.toLong(), (args[1] as RowanValue.RNum).v.toLong()).simplify() },
-        "float" to BuiltinFunc { args -> RowanValue.RNum(when(args[0]) { is RowanValue.RRat -> args[0].toDouble(); is RowanValue.RNum -> args[0].v; else -> 0.0 }) },
+        "rat" to { args -> RowanValue.RRat(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).simplify() },
+        "float" to { args -> RowanValue.RNum(getNum(args.getOrNull(0))) },
 
-        // ИСПРАВЛЕНО: корректное приведение типов для битовых операций
-        "&" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() and (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
-        "|" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() or (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
-        "^" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() xor (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
-        "<<" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() shl (args[1] as RowanValue.RNum).v.toInt()).toDouble()) },
-        ">>" to BuiltinFunc { args -> RowanValue.RNum(((args[0] as RowanValue.RNum).v.toLong() shr (args[1] as RowanValue.RNum).v.toInt()).toDouble()) },
-        "count-bits" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RNum).v.toLong().countOneBits().toDouble()) },
+        // ИСПРАВЛЕНО: Абсолютно безопасные битовые операции без ClassCastException
+        "&" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) and getLong(args.getOrNull(1))).toDouble()) },
+        "|" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) or getLong(args.getOrNull(1))).toDouble()) },
+        "^" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) xor getLong(args.getOrNull(1))).toDouble()) },
+        "<<" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) shl getLong(args.getOrNull(1)).toInt()).toDouble()) },
+        ">>" to { args -> RowanValue.RNum((getLong(args.getOrNull(0)) shr getLong(args.getOrNull(1)).toInt()).toDouble()) },
+        "count-bits" to { args -> RowanValue.RNum(getLong(args.getOrNull(0)).countOneBits().toDouble()) },
 
-        "==" to BuiltinFunc { args -> if (args[0].toString() == args[1].toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
-        "!=" to BuiltinFunc { args -> if (args[0].toString() != args[1].toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
-        "<" to BuiltinFunc { args -> if (toNum(args[0]) < toNum(args[1])) RowanValue.RNum(1.0) else RowanValue.RNull },
-        ">" to BuiltinFunc { args -> if (toNum(args[0]) > toNum(args[1])) RowanValue.RNum(1.0) else RowanValue.RNull },
-        "<=" to BuiltinFunc { args -> if (toNum(args[0]) <= toNum(args[1])) RowanValue.RNum(1.0) else RowanValue.RNull },
-        ">=" to BuiltinFunc { args -> if (toNum(args[0]) >= toNum(args[1])) RowanValue.RNum(1.0) else RowanValue.RNull },
-        "and" to BuiltinFunc { args -> if (isTruthy(args[0]) && isTruthy(args[1])) args[1] else RowanValue.RNull },
-        "or" to BuiltinFunc { args -> if (isTruthy(args[0])) args[0] else args[1] },
-        "not" to BuiltinFunc { args -> if (isTruthy(args[0])) RowanValue.RNull else RowanValue.RNum(1.0) },
+        "==" to { args -> if (args.getOrNull(0).toString() == args.getOrNull(1).toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
+        "!=" to { args -> if (args.getOrNull(0).toString() != args.getOrNull(1).toString()) RowanValue.RNum(1.0) else RowanValue.RNull },
+        "<" to { args -> if (getNum(args.getOrNull(0)) < getNum(args.getOrNull(1))) RowanValue.RNum(1.0) else RowanValue.RNull },
+        ">" to { args -> if (getNum(args.getOrNull(0)) > getNum(args.getOrNull(1))) RowanValue.RNum(1.0) else RowanValue.RNull },
+        "<=" to { args -> if (getNum(args.getOrNull(0)) <= getNum(args.getOrNull(1))) RowanValue.RNum(1.0) else RowanValue.RNull },
+        ">=" to { args -> if (getNum(args.getOrNull(0)) >= getNum(args.getOrNull(1))) RowanValue.RNum(1.0) else RowanValue.RNull },
+        "and" to { args -> if (isTruthy(args.getOrNull(0) ?: RowanValue.RNull) && isTruthy(args.getOrNull(1) ?: RowanValue.RNull)) (args.getOrNull(1) ?: RowanValue.RNull) else RowanValue.RNull },
+        "or" to { args -> if (isTruthy(args.getOrNull(0) ?: RowanValue.RNull)) (args.getOrNull(0) ?: RowanValue.RNull) else (args.getOrNull(1) ?: RowanValue.RNull) },
+        "not" to { args -> if (isTruthy(args.getOrNull(0) ?: RowanValue.RNull)) RowanValue.RNull else RowanValue.RNum(1.0) },
 
-        "store" to BuiltinFunc { args -> memory[(args[0] as RowanValue.RNum).v.toLong()] = args[1]; args[1] },
-        "load" to BuiltinFunc { args -> memory[(args[0] as RowanValue.RNum).v.toLong()] ?: RowanValue.RNum(0.0) },
-        "alloc" to BuiltinFunc { args -> val addr = (memory.keys.maxOrNull() ?: -1L) + 1L; for(i in 0 until (args[0] as RowanValue.RNum).v.toLong()) memory[addr+i] = RowanValue.RNull; RowanValue.RNum(addr.toDouble()) },
-        "free" to BuiltinFunc { args -> for(i in 0 until (args[0] as RowanValue.RNum).v.toLong()) memory.remove((args[1] as RowanValue.RNum).v.toLong() + i); RowanValue.RNull },
-        "ptr" to BuiltinFunc { args -> RowanValue.RNum(((memory.keys.maxOrNull() ?: -1L) + 1L).toDouble()) },
+        "store" to { args -> memory[getLong(args.getOrNull(0))] = args.getOrNull(1) ?: RowanValue.RNull; args.getOrNull(1) ?: RowanValue.RNull },
+        "load" to { args -> memory[getLong(args.getOrNull(0))] ?: RowanValue.RNum(0.0) },
+        "alloc" to { args -> 
+            val addr = (memory.keys.maxOrNull() ?: -1L) + 1L
+            val count = getLong(args.getOrNull(0)).toInt().coerceAtLeast(0)
+            for(i in 0 until count) memory[addr+i] = RowanValue.RNull
+            RowanValue.RNum(addr.toDouble()) 
+        },
+        "free" to { args -> 
+            val count = getLong(args.getOrNull(0)).toInt().coerceAtLeast(0)
+            val start = getLong(args.getOrNull(1))
+            for(i in 0 until count) memory.remove(start + i)
+            RowanValue.RNull 
+        },
+        "ptr" to { args -> RowanValue.RNum(((memory.keys.maxOrNull() ?: -1L) + 1L).toDouble()) },
 
-        "random" to BuiltinFunc { args -> 
-            if (args.size == 2) RowanValue.RNum(Random.nextDouble((args[0] as RowanValue.RNum).v, (args[1] as RowanValue.RNum).v))
+        "random" to { args -> 
+            if (args.size >= 2) RowanValue.RNum(Random.nextDouble(getNum(args[0]), getNum(args[1])))
             else RowanValue.RNum(Random.nextDouble())
         },
-        "secrandom" to BuiltinFunc { args -> RowanValue.RNum(secureRandom.nextDouble()) },
-        "randint" to BuiltinFunc { args -> RowanValue.RNum(Random.nextLong((args[0] as RowanValue.RNum).v.toLong(), (args[1] as RowanValue.RNum).v.toLong()).toDouble()) },
+        "secrandom" to { args -> RowanValue.RNum(secureRandom.nextDouble()) },
+        "randint" to { args -> RowanValue.RNum(Random.nextLong(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).toDouble()) },
 
-        "list" to BuiltinFunc { args -> RowanValue.RList(args.toMutableList()) },
-        "nth" to BuiltinFunc { args -> (args[0] as RowanValue.RList).v[(args[1] as RowanValue.RNum).v.toInt()] },
-        "append" to BuiltinFunc { args -> (args[0] as RowanValue.RList).v.add(args[1]); args[0] },
-        "len" to BuiltinFunc { args -> RowanValue.RNum((args[0] as RowanValue.RList).v.size.toDouble()) },
-        "print" to BuiltinFunc { args -> RowanValue.RString(args.joinToString(" ") { it.toString() }) },
-        "type" to BuiltinFunc { args -> RowanValue.RString(when(args[0]) { is RowanValue.RNum -> "number"; is RowanValue.RRat -> "rational"; is RowanValue.RString -> "string"; is RowanValue.RList -> "list"; is RowanValue.RObject -> "object"; is RowanValue.RFunction -> "function"; else -> "null" }) },
-        "cast" to BuiltinFunc { args -> 
-            val v = args[0]; val t = (args[1] as RowanValue.RString).v
-            when(t) {
-                // ИСПРАВЛЕНО: v.v.toDoubleOrNull() для корректного доступа к строковому значению
-                "number" -> if (v is RowanValue.RString) RowanValue.RNum(v.v.toDoubleOrNull() ?: 0.0) else if (v is RowanValue.RRat) RowanValue.RNum(v.toDouble()) else v
-                "string" -> RowanValue.RString(v.toString())
-                else -> v
+        "list" to { args -> RowanValue.RList(args.toMutableList()) },
+        "nth" to { args -> (args.getOrNull(0) as? RowanValue.RList)?.v?.getOrNull(getLong(args.getOrNull(1)).toInt()) ?: RowanValue.RNull },
+        "append" to { args -> (args.getOrNull(0) as? RowanValue.RList)?.v?.add(args.getOrNull(1) ?: RowanValue.RNull); args.getOrNull(0) ?: RowanValue.RNull },
+        "len" to { args -> RowanValue.RNum((args.getOrNull(0) as? RowanValue.RList)?.v?.size?.toDouble() ?: 0.0) },
+        "print" to { args -> RowanValue.RString(args.joinToString(" ") { it.toString().trim('"') }) },
+        "type" to { args -> 
+            RowanValue.RString(when(args.getOrNull(0)) { 
+                is RowanValue.RNum -> "number"; is RowanValue.RRat -> "rational"; is RowanValue.RString -> "string"
+                is RowanValue.RList -> "list"; is RowanValue.RObject -> "object"; is RowanValue.RFunction -> "function"
+                is RowanValue.RBuiltin -> "builtin"; else -> "null" 
+            }) 
+        },
+        // ИСПРАВЛЕНО: Безопасный cast без ошибок компиляции
+        "cast" to { args ->
+            val target = args.getOrNull(0) ?: RowanValue.RNull
+            val typeName = (args.getOrNull(1) as? RowanValue.RString)?.v ?: "string"
+            when (typeName) {
+                "number" -> when (target) {
+                    is RowanValue.RString -> RowanValue.RNum(target.v.toDoubleOrNull() ?: 0.0)
+                    is RowanValue.RRat -> RowanValue.RNum(target.toDouble())
+                    is RowanValue.RNum -> target
+                    else -> RowanValue.RNum(0.0)
+                }
+                "string" -> RowanValue.RString(target.toString().trim('"'))
+                else -> target
             }
         }
     )
-
-    private fun toNum(v: RowanValue): Double = when(v) { is RowanValue.RNum -> v.v; is RowanValue.RRat -> v.toDouble(); else -> 0.0 }
 }
