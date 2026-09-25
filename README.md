@@ -1,5 +1,5 @@
 ![Logo](LogoQuasar.jpg)
-
+ 
 ---   
  
 # 🌌 Perceptron  
