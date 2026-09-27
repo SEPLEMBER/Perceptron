@@ -1,9 +1,9 @@
-package es.zelliot.perceptron
+package es.zelliot.perception
 
+import android.content.pm.PackageInfo
 import android.os.Bundle
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import es.zelliot.perceptron.databinding.ActivityRwInfBinding
+import es.zelliot.perception.databinding.ActivityRwInfBinding
 
 class RWInfActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRwInfBinding
@@ -15,7 +15,14 @@ class RWInfActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         
-        // Можно динамически подставить версию из BuildConfig
-        binding.tvVersion.text = "Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        // Безопасное получение версии через PackageManager (работает в любых версиях AGP)
+        val versionName = try {
+            val pInfo: PackageInfo = packageManager.getPackageInfo(packageName, 0)
+            pInfo.versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+        
+        binding.tvVersion.text = "Version: $versionName"
     }
 }
