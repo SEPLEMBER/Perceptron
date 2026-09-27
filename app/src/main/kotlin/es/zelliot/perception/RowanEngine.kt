@@ -7,7 +7,8 @@ import kotlin.random.Random
 object RowanEngine {
     var syscallHandler: ((Long, List<RowanValue>) -> RowanValue)? = null
     
-    private const val MAX_ITERATIONS = 100_000
+    // ИСПРАВЛЕНО: Увеличен лимит для сложных вычислений (AES, SHA и т.д.)
+    private const val MAX_ITERATIONS = 10_000_000 
     private const val MAX_MEMORY_OPS = 10_000_000
 
     fun evaluate(script: String): String {
@@ -65,7 +66,7 @@ object RowanEngine {
                                 var res: RowanValue = RowanValue.RNull
                                 var iterations = 0
                                 while (isTruthy(eval(ast.getOrNull(1), env, depth + 1))) { 
-                                    if (++iterations > MAX_ITERATIONS) throw Exception("Infinite loop detected")
+                                    if (++iterations > MAX_ITERATIONS) throw Exception("Infinite loop detected (limit: $MAX_ITERATIONS)")
                                     try { res = eval(ast.getOrNull(2), env, depth + 1) } 
                                     catch (e: ControlFlow) { if (e.type == "break") break; if (e.type == "continue") continue; else throw e } 
                                 }
@@ -437,7 +438,6 @@ object RowanEngine {
             if (b == 0L) RowanValue.RNum(0.0) else RowanValue.RNum((a % b).toDouble())
         },
         
-        // ДОБАВЛЕНО: Целочисленное деление
         "//" to { args, _, _, _, _ ->
             if (args.size < 2) RowanValue.RNum(0.0)
             else {
@@ -475,6 +475,18 @@ object RowanEngine {
         "count-bits" to { args, _, _, _, _ -> RowanValue.RNum(getLong(args.getOrNull(0)).countOneBits().toDouble()) },
         "clz" to { args, _, _, _, _ -> RowanValue.RNum(getLong(args.getOrNull(0)).countLeadingZeroBits().toDouble()) },
         "ctz" to { args, _, _, _, _ -> RowanValue.RNum(getLong(args.getOrNull(0)).countTrailingZeroBits().toDouble()) },
+
+        // ДОБАВЛЕНО: Big Endian конвертер для AES тестов
+        "be" to { args, _, _, _, _ ->
+            val v = getLong(args.getOrNull(0))
+            // Возвращаем список из 4 байт в Big Endian порядке
+            RowanValue.RList(mutableListOf(
+                RowanValue.RNum((v shr 24).toByte().toUByte().toInt().toDouble()),
+                RowanValue.RNum((v shr 16).toByte().toUByte().toInt().toDouble()),
+                RowanValue.RNum((v shr 8).toByte().toUByte().toInt().toDouble()),
+                RowanValue.RNum(v.toByte().toUByte().toInt().toDouble())
+            ))
+        },
 
         "==" to { args, _, _, _, _ -> if (args.getOrNull(0) == args.getOrNull(1)) RowanValue.RNum(1.0) else RowanValue.RNull },
         "!=" to { args, _, _, _, _ -> if (args.getOrNull(0) != args.getOrNull(1)) RowanValue.RNum(1.0) else RowanValue.RNull },
