@@ -11,13 +11,17 @@ object RowanEngine {
     private const val MAX_MEMORY_OPS = 10_000_000
 
     fun evaluate(script: String): String {
+        // ИСПРАВЛЕНО: Память и окружение теперь создаются ОДИН РАЗ на весь скрипт,
+        // что позволяет функциям, определенным в одном блоке, работать в другом.
         val memory = mutableMapOf<Long, RowanValue>()
         val byteMemory = mutableMapOf<Long, Byte>()
         val outputBuffer = StringBuilder()
+        val globalEnv = Environment()
         
         val chunks = script.split("---").map { it.trim() }.filter { it.isNotEmpty() }
         val results = mutableListOf<String>()
 
+        // Вложенная функция eval имеет доступ к globalEnv, memory, byteMemory
         fun eval(ast: Any?, env: Environment, depth: Int = 0): RowanValue {
             if (depth > 1000) throw Exception("Stack overflow: recursion too deep")
             
@@ -74,7 +78,6 @@ object RowanEngine {
                             "halt" -> throw ControlFlow("halt", eval(ast.getOrNull(1), env, depth + 1))
                             "yield" -> throw ControlFlow("yield", eval(ast.getOrNull(1), env, depth + 1))
                             
-                            // ИСПРАВЛЕНО: Функции теперь сохраняются в ТЕКУЩИЙ env, а не в newEnv
                             "fn" -> {
                                 if (ast.size >= 4 && ast[1] is String && ast[2] is List<*>) {
                                     val name = ast[1] as String
@@ -82,7 +85,7 @@ object RowanEngine {
                                     val body = ast.subList(3, ast.size)
                                     val closureEnv = env.extend()
                                     val func = RowanValue.RFunction(name, params, body, closureEnv)
-                                    env.set(name, func) // ← ИСПРАВЛЕНО: сохраняем в текущий env
+                                    env.set(name, func) // Сохраняем в текущий (или глобальный) env
                                     func
                                 } else {
                                     val params = (ast.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
@@ -198,12 +201,13 @@ object RowanEngine {
                 val tokens = tokenize(chunk)
                 if (tokens.isEmpty()) continue
                 val ast = parse(tokens)
-                val env = Environment()
-                registerBuiltins(env, memory, byteMemory, outputBuffer, ::eval)
+                
+                // ИСПРАВЛЕНО: Используем globalEnv, чтобы функции сохранялись между блоками ---
+                if (index == 0) registerBuiltins(globalEnv, memory, byteMemory, outputBuffer, ::eval)
                 
                 var lastResult: RowanValue = RowanValue.RNull
                 for (expr in ast) { 
-                    lastResult = eval(expr, env) 
+                    lastResult = eval(expr, globalEnv) 
                 }
                 
                 val bufferStr = outputBuffer.toString().trim()
@@ -339,8 +343,6 @@ object RowanEngine {
     private fun parseAtom(token: String): Any? {
         if (token.isEmpty()) return RowanValue.RNull
         if (token.startsWith("\"") && token.endsWith("\"")) return RowanValue.RString(token.substring(1, token.length - 1))
-        
-        // ИСПРАВЛЕНО: Добавлена поддержка hex-чисел (0x12, 0xFF)
         if (token.startsWith("0x", ignoreCase = true) || token.startsWith("0X")) {
             return try {
                 RowanValue.RNum(token.substring(2).toLong(16).toDouble())
@@ -348,7 +350,6 @@ object RowanEngine {
                 token
             }
         }
-        
         if (token.contains("/") && token.count { it == '/' } == 1) {
             val parts = token.split("/")
             if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
@@ -420,6 +421,14 @@ object RowanEngine {
             else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(r.den, r.num).simplify() }
             else mathOp(args.drop(1), { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
         },
+        
+        // ИСПРАВЛЕНО: Добавлен оператор остатка от деления (%)
+        "%" to { args, _, _, _, _ ->
+            val a = getLong(args.getOrNull(0))
+            val b = getLong(args.getOrNull(1))
+            if (b == 0L) RowanValue.RNum(0.0) else RowanValue.RNum((a % b).toDouble())
+        },
+        
         "rat" to { args, _, _, _, _ -> RowanValue.RRat(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).simplify() },
         "float" to { args, _, _, _, _ -> RowanValue.RNum(getNum(args.getOrNull(0))) },
         
@@ -429,6 +438,14 @@ object RowanEngine {
         "~" to { args, _, _, _, _ -> RowanValue.RNum(getLong(args.getOrNull(0)).inv().toDouble()) },
         "<<" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) shl getLong(args.getOrNull(1)).toInt()).toDouble()) },
         ">>" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) shr getLong(args.getOrNull(1)).toInt()).toDouble()) },
+        
+        // ИСПРАВЛЕНО: Добавлен беззнаковый сдвиг вправо (>>>), критичный для CRC32 и хешей
+        ">>>" to { args, _, _, _, _ ->
+            val v = getLong(args.getOrNull(0))
+            val shift = (getLong(args.getOrNull(1)) and 63L).toInt()
+            RowanValue.RNum((v ushr shift).toDouble())
+        },
+        
         "rol" to { args, _, _, _, _ -> 
             val v = getLong(args.getOrNull(0))
             val shift = (getLong(args.getOrNull(1)) and 63L).toInt()
