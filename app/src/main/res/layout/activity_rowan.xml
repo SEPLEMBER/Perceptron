@@ -151,7 +151,26 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="EXECUTION RESULT" android:textColor="#FF4081" android:textStyle="bold" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" android:textAllCaps="true" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OUTPUT" android:textColor="#FFAB40" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.1" />
             </LinearLayout>
-            <TextView android:id="@+id/tvResultContent" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:minHeight="150dp" android:maxHeight="400dp" android:scrollbars="vertical" android:textColor="#FFF0F0" android:fontFamily="monospace" android:textSize="14sp" android:lineSpacingExtra="4dp" android:freezesText="false" android:saveEnabled="false" android:background="#0F0808" android:padding="16dp" android:textIsSelectable="true" android:scrollbarThumbVertical="#FF5252" />
+            
+            <!-- ИСПРАВЛЕНО: убран android:scrollbarThumbVertical="#FF5252", так как он требует drawable, а не hex-цвет -->
+            <TextView 
+                android:id="@+id/tvResultContent" 
+                android:layout_width="match_parent" 
+                android:layout_height="0dp" 
+                android:layout_weight="1" 
+                android:minHeight="150dp" 
+                android:maxHeight="400dp" 
+                android:scrollbars="vertical" 
+                android:textColor="#FFF0F0" 
+                android:fontFamily="monospace" 
+                android:textSize="14sp" 
+                android:lineSpacingExtra="4dp" 
+                android:freezesText="false" 
+                android:saveEnabled="false" 
+                android:background="#0F0808" 
+                android:padding="16dp" 
+                android:textIsSelectable="true" />
+                
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="20dp">
                 <Button android:id="@+id/btnCopyResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Copy" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
                 <Button android:id="@+id/btnExpandResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Expand" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
