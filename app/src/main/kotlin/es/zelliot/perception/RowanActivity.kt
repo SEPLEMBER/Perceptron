@@ -26,10 +26,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.ContextThemeWrapper
-import androidx.core.graphics.drawable.IconCompat
 import es.zelliot.perceptron.databinding.ActivityRowanBinding
 import kotlinx.coroutines.*
 import java.util.regex.Pattern
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import android.widget.ScrollView
@@ -112,7 +112,7 @@ class RowanActivity : AppCompatActivity() {
         }
         binding.btnOpen.setOnClickListener { openFileLauncher.launch(arrayOf("*/*", "text/plain")) }
         
-        // НОВОЕ: Переход в About Activity
+        // Переход в About Activity
         binding.btnAbout.setOnClickListener { 
             startActivity(Intent(this, RWInfActivity::class.java)) 
         }
@@ -155,10 +155,12 @@ class RowanActivity : AppCompatActivity() {
 
     private fun applyResultSyntax(text: String): Spannable {
         val spannable = android.text.SpannableString(text)
-        // Базовый цвет текста результата - теплый белый
-        spannable.setSpan(ForegroundColorSpan(Color.parseColor("#FFF0F0")), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         
-        // Успех/Позитив - Оранжевый
+        // ИЗМЕНЕНО: Базовый цвет текста результата - мягкий розовый (Soft Pink)
+        // Отлично читается на фоне #0F0808 и гармонично сочетается с общей темой
+        spannable.setSpan(ForegroundColorSpan(Color.parseColor("#FFB6C1")), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        
+        // Успех/Позитив - Теплый оранжевый
         val successColor = Color.parseColor("#FFAB40")
         // Ошибка/Негатив - Ярко-красный
         val errorColor = Color.parseColor("#FF5252")
@@ -288,7 +290,7 @@ class RowanActivity : AppCompatActivity() {
     }
 
     private class RowanHighlighter(private val editText: EditText, private val lifecycle: androidx.lifecycle.Lifecycle) : TextWatcher {
-        // НОВАЯ ПАЛИТРА: Розово-красно-оранжевая (Magma / Cyber-Warm)
+        // ПАЛИТРА: Розово-красно-оранжевая (Magma / Cyber-Warm)
         private val colorKeyword = Color.parseColor("#FF4081")    // Hot Pink
         private val colorString = Color.parseColor("#FFAB40")     // Warm Orange
         private val colorComment = Color.parseColor("#7A5C5C")    // Muted Red-Gray
