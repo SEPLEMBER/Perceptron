@@ -43,6 +43,14 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/AppTheme" />
 
+                        <activity
+            android:name=".RWInfActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/AppTheme" />
+
+        
+
     </application>
 
 </manifest>
