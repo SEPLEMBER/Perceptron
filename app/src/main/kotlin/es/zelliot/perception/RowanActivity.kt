@@ -12,7 +12,6 @@ import android.text.Spannable
 import android.text.Spanned
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
-import android.view.ActionMode
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
@@ -21,20 +20,21 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.ContextThemeWrapper
-import androidx.core.content.pm.ShortcutInfoCompat
-import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import es.zelliot.perceptron.databinding.ActivityRowanBinding
 import kotlinx.coroutines.*
 import java.util.regex.Pattern
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import android.widget.ScrollView
+import android.widget.TextView
+import android.view.ActionMode
 
 class RowanActivity : AppCompatActivity() {
 
@@ -111,12 +111,17 @@ class RowanActivity : AppCompatActivity() {
             showToast("Stopped")
         }
         binding.btnOpen.setOnClickListener { openFileLauncher.launch(arrayOf("*/*", "text/plain")) }
+        
+        // НОВОЕ: Переход в About Activity
+        binding.btnAbout.setOnClickListener { 
+            startActivity(Intent(this, RWInfActivity::class.java)) 
+        }
+        
         binding.btnExit.setOnClickListener { showExitConfirmationDialog() }
     }
     
     private fun showExitConfirmationDialog() {
-        // ИСПРАВЛЕНО: используем стандартный системный стиль диалога
-        AlertDialog.Builder(ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_Dialog_Alert))
+        AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert))
             .setTitle("Exit Rowan?")
             .setMessage("Terminate the engine?")
             .setPositiveButton("YES") { _, _ -> finishAffinity(); kotlin.system.exitProcess(0) }
@@ -150,11 +155,22 @@ class RowanActivity : AppCompatActivity() {
 
     private fun applyResultSyntax(text: String): Spannable {
         val spannable = android.text.SpannableString(text)
-        spannable.setSpan(ForegroundColorSpan(Color.parseColor("#00E5FF")), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        val greenColor = Color.parseColor("#A8FF60")
-        listOf(Regex("\\bSuccess\\b", RegexOption.IGNORE_CASE), Regex("\\bOK\\b", RegexOption.IGNORE_CASE), Regex("\\btrue\\b", RegexOption.IGNORE_CASE), Regex("\\b\\+\\d+(?:\\.\\d+)?\\b")).forEach { pattern ->
+        // Базовый цвет текста результата - теплый белый
+        spannable.setSpan(ForegroundColorSpan(Color.parseColor("#FFF0F0")), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        
+        // Успех/Позитив - Оранжевый
+        val successColor = Color.parseColor("#FFAB40")
+        // Ошибка/Негатив - Ярко-красный
+        val errorColor = Color.parseColor("#FF5252")
+        
+        listOf(Regex("\\bSuccess\\b", RegexOption.IGNORE_CASE), Regex("\\bOK\\b", RegexOption.IGNORE_CASE), Regex("\\b✅\\b"), Regex("\\bУСПЕХ\\b", RegexOption.IGNORE_CASE)).forEach { pattern ->
             pattern.findAll(text).forEach { match ->
-                spannable.setSpan(ForegroundColorSpan(greenColor), match.range.first, match.range.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                spannable.setSpan(ForegroundColorSpan(successColor), match.range.first, match.range.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        listOf(Regex("\\bError\\b", RegexOption.IGNORE_CASE), Regex("\\b❌\\b"), Regex("\\bОШИБКА\\b", RegexOption.IGNORE_CASE)).forEach { pattern ->
+            pattern.findAll(text).forEach { match ->
+                spannable.setSpan(ForegroundColorSpan(errorColor), match.range.first, match.range.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
         return spannable
@@ -272,12 +288,13 @@ class RowanActivity : AppCompatActivity() {
     }
 
     private class RowanHighlighter(private val editText: EditText, private val lifecycle: androidx.lifecycle.Lifecycle) : TextWatcher {
-        private val colorKeyword = Color.parseColor("#C792EA")
-        private val colorString = Color.parseColor("#C3E88D")
-        private val colorComment = Color.parseColor("#546E7A")
-        private val colorNumber = Color.parseColor("#F78C6C")
-        private val colorFunction = Color.parseColor("#82AAFF")
-        private val colorOperator = Color.parseColor("#89DDFF")
+        // НОВАЯ ПАЛИТРА: Розово-красно-оранжевая (Magma / Cyber-Warm)
+        private val colorKeyword = Color.parseColor("#FF4081")    // Hot Pink
+        private val colorString = Color.parseColor("#FFAB40")     // Warm Orange
+        private val colorComment = Color.parseColor("#7A5C5C")    // Muted Red-Gray
+        private val colorNumber = Color.parseColor("#FF6E40")     // Bright Orange
+        private val colorFunction = Color.parseColor("#FF80AB")   // Light Pink
+        private val colorOperator = Color.parseColor("#FF5252")   // Red
 
         private val stringPattern = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\")")
         private val commentPattern = Pattern.compile("(#.*)")
