@@ -1,9 +1,8 @@
-package es.zelliot.perception
+package es.zelliot.perceptron
 
-import android.content.pm.PackageInfo
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import es.zelliot.perception.databinding.ActivityRwInfBinding
+import es.zelliot.perceptron.databinding.ActivityRwInfBinding 
 
 class RWInfActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRwInfBinding
@@ -15,14 +14,7 @@ class RWInfActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         
-        // Безопасное получение версии через PackageManager (работает в любых версиях AGP)
-        val versionName = try {
-            val pInfo: PackageInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.0.0"
-        } catch (e: Exception) {
-            "1.0.0"
-        }
-        
-        binding.tvVersion.text = "Version: $versionName"
+        // ПРОСТО И НАДЕЖНО: Хардкод версии, как вы и предложили
+        binding.tvVersion.text = "Version: 1.0.0 (Stable)"
     }
 }
