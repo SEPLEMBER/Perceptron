@@ -426,19 +426,27 @@ object RowanEngine {
             else mathOp(args, { a, b -> a - b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 - n2 * d1, d1 * d2) }) 
         },
         "*" to { args, _, _, _, _ -> mathOp(args, { a, b -> a * b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * n2, d1 * d2) }) },
-        
-        // ИСПРАВЛЕНО: убран args.drop(1), теперь передаются все аргументы!
         "/" to { args, _, _, _, _ -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(1.0 / (args[0] as RowanValue.RNum).v) 
             else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(r.den, r.num).simplify() }
             else mathOp(args, { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
         },
-        
         "%" to { args, _, _, _, _ ->
             val a = getLong(args.getOrNull(0))
             val b = getLong(args.getOrNull(1))
             if (b == 0L) RowanValue.RNum(0.0) else RowanValue.RNum((a % b).toDouble())
         },
+        
+        // ДОБАВЛЕНО: Целочисленное деление
+        "//" to { args, _, _, _, _ ->
+            if (args.size < 2) RowanValue.RNum(0.0)
+            else {
+                val a = getLong(args.getOrNull(0))
+                val b = getLong(args.getOrNull(1))
+                if (b == 0L) RowanValue.RNum(0.0) else RowanValue.RNum((a / b).toDouble())
+            }
+        },
+        
         "rat" to { args, _, _, _, _ -> RowanValue.RRat(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).simplify() },
         "float" to { args, _, _, _, _ -> RowanValue.RNum(getNum(args.getOrNull(0))) },
         "&" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) and getLong(args.getOrNull(1))).toDouble()) },
