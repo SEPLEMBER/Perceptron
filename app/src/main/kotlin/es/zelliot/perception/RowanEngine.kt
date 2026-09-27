@@ -11,8 +11,6 @@ object RowanEngine {
     private const val MAX_MEMORY_OPS = 10_000_000
 
     fun evaluate(script: String): String {
-        // ИСПРАВЛЕНО: Память и окружение теперь создаются ОДИН РАЗ на весь скрипт,
-        // что позволяет функциям, определенным в одном блоке, работать в другом.
         val memory = mutableMapOf<Long, RowanValue>()
         val byteMemory = mutableMapOf<Long, Byte>()
         val outputBuffer = StringBuilder()
@@ -21,7 +19,6 @@ object RowanEngine {
         val chunks = script.split("---").map { it.trim() }.filter { it.isNotEmpty() }
         val results = mutableListOf<String>()
 
-        // Вложенная функция eval имеет доступ к globalEnv, memory, byteMemory
         fun eval(ast: Any?, env: Environment, depth: Int = 0): RowanValue {
             if (depth > 1000) throw Exception("Stack overflow: recursion too deep")
             
@@ -39,7 +36,7 @@ object RowanEngine {
                             "set" -> { 
                                 val name = ast.getOrNull(1) as? String ?: return RowanValue.RString("Error: set requires symbol")
                                 val value = eval(ast.getOrNull(2), env, depth + 1)
-                                env.set(name, value)
+                                env.set(name, value) // ИСПРАВЛЕНО: set теперь ищет переменную вверх по стеку!
                                 value 
                             }
                             "let" -> { 
@@ -47,14 +44,14 @@ object RowanEngine {
                                     val name = ast.getOrNull(1) as? String ?: return RowanValue.RString("Error: let requires symbol")
                                     val value = eval(ast.getOrNull(2), env, depth + 1)
                                     val newEnv = env.extend()
-                                    newEnv.set(name, value)
+                                    newEnv.define(name, value) // ИСПРАВЛЕНО: define создает в новом scope
                                     var res: RowanValue = RowanValue.RNull
                                     for (i in 3 until ast.size) res = eval(ast.getOrNull(i), newEnv, depth + 1)
                                     res
                                 } else {
                                     val name = ast.getOrNull(1) as? String ?: return RowanValue.RString("Error: let requires symbol")
                                     val value = eval(ast.getOrNull(2), env, depth + 1)
-                                    env.set(name, value)
+                                    env.define(name, value)
                                     value
                                 }
                             }
@@ -85,7 +82,7 @@ object RowanEngine {
                                     val body = ast.subList(3, ast.size)
                                     val closureEnv = env.extend()
                                     val func = RowanValue.RFunction(name, params, body, closureEnv)
-                                    env.set(name, func) // Сохраняем в текущий (или глобальный) env
+                                    env.define(name, func)
                                     func
                                 } else {
                                     val params = (ast.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
@@ -103,7 +100,7 @@ object RowanEngine {
                                     val body = methodDef.subList(2, methodDef.size)
                                     methods[mName] = MethodDef(params, body)
                                 }
-                                env.set(name, RowanValue.RObject(name, mutableMapOf(), methods))
+                                env.define(name, RowanValue.RObject(name, mutableMapOf(), methods))
                                 RowanValue.RString("Class '$name' defined")
                             }
                             "new" -> {
@@ -114,8 +111,8 @@ object RowanEngine {
                                 if (initMethod != null) {
                                     val newArgs = ast.subList(2, ast.size).map { eval(it, env, depth + 1) }
                                     val initEnv = Environment().apply { 
-                                        set("self", instance)
-                                        initMethod.params.forEachIndexed { idx, p -> set(p, newArgs.getOrElse(idx) { RowanValue.RNull }) }
+                                        define("self", instance)
+                                        initMethod.params.forEachIndexed { idx, p -> define(p, newArgs.getOrElse(idx) { RowanValue.RNull }) }
                                     }
                                     for (expr in initMethod.body) { eval(expr, initEnv, depth + 1) }
                                 }
@@ -127,8 +124,8 @@ object RowanEngine {
                                 val methodDef = obj.methods[methodName] ?: return RowanValue.RString("Error: Method '$methodName' not found")
                                 val callArgs = ast.subList(3, ast.size).map { eval(it, env, depth + 1) }
                                 val callEnv = Environment().apply { 
-                                    set("self", obj)
-                                    methodDef.params.forEachIndexed { idx, p -> set(p, callArgs.getOrElse(idx) { RowanValue.RNull }) }
+                                    define("self", obj)
+                                    methodDef.params.forEachIndexed { idx, p -> define(p, callArgs.getOrElse(idx) { RowanValue.RNull }) }
                                 }
                                 var res: RowanValue = RowanValue.RNull
                                 for (expr in methodDef.body) { res = eval(expr, callEnv, depth + 1) }
@@ -173,7 +170,7 @@ object RowanEngine {
                                 when (func) {
                                     is RowanValue.RFunction -> {
                                         val callEnv = func.closure.extend()
-                                        func.params.forEachIndexed { i, p -> callEnv.set(p, args.getOrElse(i) { RowanValue.RNull }) }
+                                        func.params.forEachIndexed { i, p -> callEnv.define(p, args.getOrElse(i) { RowanValue.RNull }) }
                                         try {
                                             var res: RowanValue = RowanValue.RNull
                                             for (expr in func.body) { res = eval(expr, callEnv, depth + 1) }
@@ -202,7 +199,6 @@ object RowanEngine {
                 if (tokens.isEmpty()) continue
                 val ast = parse(tokens)
                 
-                // ИСПРАВЛЕНО: Используем globalEnv, чтобы функции сохранялись между блоками ---
                 if (index == 0) registerBuiltins(globalEnv, memory, byteMemory, outputBuffer, ::eval)
                 
                 var lastResult: RowanValue = RowanValue.RNull
@@ -271,9 +267,24 @@ object RowanEngine {
         }
     }
 
+    // ИСПРАВЛЕНО: Разделение define (создание) и set (мутация)
     class Environment(val parent: Environment? = null) {
         private val vars = mutableMapOf<String, RowanValue>()
-        fun set(name: String, value: RowanValue) { vars[name] = value }
+        
+        // Создает переменную строго в текущем окружении
+        fun define(name: String, value: RowanValue) { vars[name] = value }
+        
+        // Ищет переменную вверх по стеку и обновляет её. Если не находит - создает.
+        fun set(name: String, value: RowanValue) {
+            if (vars.containsKey(name)) {
+                vars[name] = value
+            } else if (parent != null && parent.has(name)) {
+                parent.set(name, value)
+            } else {
+                vars[name] = value
+            }
+        }
+        
         fun get(name: String): RowanValue = vars[name] ?: parent?.get(name) ?: throw Exception("Undefined variable: '$name'")
         fun has(name: String): Boolean = vars.containsKey(name) || (parent?.has(name) ?: false)
         fun extend(): Environment = Environment(this)
@@ -387,7 +398,7 @@ object RowanEngine {
         evalFn: (Any?, Environment, Int) -> RowanValue
     ) { 
         builtins.forEach { (name, fn) -> 
-            env.set(name, RowanValue.RBuiltin(name, { args -> fn(args, memory, byteMemory, outputBuffer, evalFn) })) 
+            env.define(name, RowanValue.RBuiltin(name, { args -> fn(args, memory, byteMemory, outputBuffer, evalFn) })) 
         } 
     }
 
@@ -421,31 +432,24 @@ object RowanEngine {
             else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(r.den, r.num).simplify() }
             else mathOp(args.drop(1), { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
         },
-        
-        // ИСПРАВЛЕНО: Добавлен оператор остатка от деления (%)
         "%" to { args, _, _, _, _ ->
             val a = getLong(args.getOrNull(0))
             val b = getLong(args.getOrNull(1))
             if (b == 0L) RowanValue.RNum(0.0) else RowanValue.RNum((a % b).toDouble())
         },
-        
         "rat" to { args, _, _, _, _ -> RowanValue.RRat(getLong(args.getOrNull(0)), getLong(args.getOrNull(1))).simplify() },
         "float" to { args, _, _, _, _ -> RowanValue.RNum(getNum(args.getOrNull(0))) },
-        
         "&" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) and getLong(args.getOrNull(1))).toDouble()) },
         "|" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) or getLong(args.getOrNull(1))).toDouble()) },
         "^" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) xor getLong(args.getOrNull(1))).toDouble()) },
         "~" to { args, _, _, _, _ -> RowanValue.RNum(getLong(args.getOrNull(0)).inv().toDouble()) },
         "<<" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) shl getLong(args.getOrNull(1)).toInt()).toDouble()) },
         ">>" to { args, _, _, _, _ -> RowanValue.RNum((getLong(args.getOrNull(0)) shr getLong(args.getOrNull(1)).toInt()).toDouble()) },
-        
-        // ИСПРАВЛЕНО: Добавлен беззнаковый сдвиг вправо (>>>), критичный для CRC32 и хешей
         ">>>" to { args, _, _, _, _ ->
             val v = getLong(args.getOrNull(0))
             val shift = (getLong(args.getOrNull(1)) and 63L).toInt()
             RowanValue.RNum((v ushr shift).toDouble())
         },
-        
         "rol" to { args, _, _, _, _ -> 
             val v = getLong(args.getOrNull(0))
             val shift = (getLong(args.getOrNull(1)) and 63L).toInt()
