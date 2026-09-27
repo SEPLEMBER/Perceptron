@@ -36,7 +36,7 @@ object RowanEngine {
                             "set" -> { 
                                 val name = ast.getOrNull(1) as? String ?: return RowanValue.RString("Error: set requires symbol")
                                 val value = eval(ast.getOrNull(2), env, depth + 1)
-                                env.set(name, value) // ИСПРАВЛЕНО: set теперь ищет переменную вверх по стеку!
+                                env.set(name, value)
                                 value 
                             }
                             "let" -> { 
@@ -44,7 +44,7 @@ object RowanEngine {
                                     val name = ast.getOrNull(1) as? String ?: return RowanValue.RString("Error: let requires symbol")
                                     val value = eval(ast.getOrNull(2), env, depth + 1)
                                     val newEnv = env.extend()
-                                    newEnv.define(name, value) // ИСПРАВЛЕНО: define создает в новом scope
+                                    newEnv.define(name, value)
                                     var res: RowanValue = RowanValue.RNull
                                     for (i in 3 until ast.size) res = eval(ast.getOrNull(i), newEnv, depth + 1)
                                     res
@@ -267,14 +267,11 @@ object RowanEngine {
         }
     }
 
-    // ИСПРАВЛЕНО: Разделение define (создание) и set (мутация)
     class Environment(val parent: Environment? = null) {
         private val vars = mutableMapOf<String, RowanValue>()
         
-        // Создает переменную строго в текущем окружении
         fun define(name: String, value: RowanValue) { vars[name] = value }
         
-        // Ищет переменную вверх по стеку и обновляет её. Если не находит - создает.
         fun set(name: String, value: RowanValue) {
             if (vars.containsKey(name)) {
                 vars[name] = value
@@ -403,6 +400,7 @@ object RowanEngine {
     }
 
     private fun mathOp(args: List<RowanValue>, doubleOp: (Double, Double) -> Double, ratOp: (Long, Long, Long, Long) -> RowanValue.RRat): RowanValue {
+        if (args.isEmpty()) return RowanValue.RNum(0.0)
         if (args.all { it is RowanValue.RNum }) {
             return RowanValue.RNum(args.drop(1).fold((args[0] as RowanValue.RNum).v) { acc, v -> doubleOp(acc, (v as RowanValue.RNum).v) })
         }
@@ -424,14 +422,18 @@ object RowanEngine {
         "+" to { args, _, _, _, _ -> mathOp(args, { a, b -> a + b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 + n2 * d1, d1 * d2) }) },
         "-" to { args, _, _, _, _ -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(-(args[0] as RowanValue.RNum).v)
+            else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(-r.num, r.den).simplify() }
             else mathOp(args, { a, b -> a - b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2 - n2 * d1, d1 * d2) }) 
         },
         "*" to { args, _, _, _, _ -> mathOp(args, { a, b -> a * b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * n2, d1 * d2) }) },
+        
+        // ИСПРАВЛЕНО: убран args.drop(1), теперь передаются все аргументы!
         "/" to { args, _, _, _, _ -> 
             if (args.size == 1 && args[0] is RowanValue.RNum) RowanValue.RNum(1.0 / (args[0] as RowanValue.RNum).v) 
             else if (args.size == 1 && args[0] is RowanValue.RRat) (args[0] as RowanValue.RRat).let { r -> RowanValue.RRat(r.den, r.num).simplify() }
-            else mathOp(args.drop(1), { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
+            else mathOp(args, { a, b -> a / b }, { n1, d1, n2, d2 -> RowanValue.RRat(n1 * d2, d1 * n2) })
         },
+        
         "%" to { args, _, _, _, _ ->
             val a = getLong(args.getOrNull(0))
             val b = getLong(args.getOrNull(1))
