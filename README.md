@@ -1,4 +1,4 @@
-![Logo](LogoQuasar.jpg)
+![Logo](LogoQuasar.jpg) 
  
 ---   
  
