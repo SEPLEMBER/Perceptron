@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#050505"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Основной терминал с логом загрузки -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none">
+            
+            <TextView
+                android:id="@+id/tvBootLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FF4081"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:lineSpacingExtra="4dp"
+                android:textIsSelectable="false" />
+        </ScrollView>
+
+        <!-- Нижняя строка статуса с анимацией точек -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FF80AB"
+            android:fontFamily="monospace"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05" />
+    </LinearLayout>
+
+</FrameLayout>
