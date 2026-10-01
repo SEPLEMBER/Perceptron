@@ -17,8 +17,8 @@ class RWStartActivity : AppCompatActivity() {
     // Правая часть (ASCII) отражает реальные структуры данных и лимиты движка
     private val bootSequence = listOf(
         "ROWAN VM ENGINE v1.0.0 [RELEASE]",
-        "Copyright (C) 2024 Zelliot Perceptron\n",
-        "ARCH: ARM64 / x86_64 Host Emulation",
+        "Copyright (C) 2026 EFP\n",
+        "ARCH: ARM64 / Host Emulation",
         "MODE: Sandboxed Execution Environment\n",
         
         // Hex-дамп инициализации внутреннего состояния (как реальный hexdump -C)
