@@ -10,7 +10,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 1. TOP BAR -->
+        <!-- 1. ВЕРХНЯЯ ПАНЕЛЬ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -26,7 +26,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ROWAN ENGINE"
+                android:text="ДВИЖОК ROWAN"
                 android:textColor="#FF5252"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
@@ -61,20 +61,20 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <Button android:id="@+id/btnClear" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="CLEAR" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnExecute" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="RUN" android:textColor="#FFAB40" android:backgroundTint="#3D2A1A" android:fontFamily="monospace" android:textSize="12sp" android:textStyle="bold" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnStop" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="STOP" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnClear" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="ОЧИСТИТЬ" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnExecute" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="ЗАПУСК" android:textColor="#FFAB40" android:backgroundTint="#3D2A1A" android:fontFamily="monospace" android:textSize="12sp" android:textStyle="bold" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnStop" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="СТОП" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
                     <View android:layout_width="1dp" android:layout_height="20dp" android:background="#3D1A1A" android:layout_marginStart="4dp" android:layout_marginEnd="8dp" />
-                    <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="OPEN" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnAbout" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="ABOUT" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                    <Button android:id="@+id/btnExit" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="EXIT" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="ОТКРЫТЬ" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnAbout" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="О ПРОГРАММЕ" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                    <Button android:id="@+id/btnExit" android:layout_width="wrap_content" android:layout_height="40dp" android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="ВЫХОД" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" android:layout_marginEnd="4dp" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
                 </LinearLayout>
             </HorizontalScrollView>
         </LinearLayout>
 
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#3D1A1A" />
 
-        <!-- 2. MAIN EDITOR AREA -->
+        <!-- 2. ОСНОВНАЯ ОБЛАСТЬ РЕДАКТОРА -->
         <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:background="#120A0A">
             <LinearLayout android:layout_width="24dp" android:layout_height="match_parent" android:layout_gravity="start" android:orientation="vertical" android:background="#120A0A">
                 <View android:layout_width="4dp" android:layout_height="match_parent" android:layout_gravity="center_horizontal" android:background="#3D1A1A" />
@@ -94,7 +94,7 @@
                 android:lineSpacingExtra="6dp"
                 android:gravity="top|start"
                 android:padding="16dp"
-                android:hint='# Write Rowan code here...\n(do\n  (print "Hello Rowan")\n)'
+                android:hint='# Пишите код на Rowan здесь...\n(do\n  (print "Привет, Rowan")\n)'
                 android:inputType="textMultiLine|textNoSuggestions"
                 android:importantForAutofill="no"
                 android:freezesText="false"
@@ -104,7 +104,7 @@
                 android:typeface="monospace" />
         </FrameLayout>
 
-        <!-- 3. SEARCH PANEL -->
+        <!-- 3. ПАНЕЛЬ ПОИСКА -->
         <LinearLayout
             android:id="@+id/searchPanel"
             android:layout_width="match_parent"
@@ -116,27 +116,27 @@
             android:elevation="8dp">
             
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                <EditText android:id="@+id/etSearch" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:background="#0F0808" android:textColor="#FF80AB" android:textColorHint="#5C3A3A" android:hint="Search..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
-                <EditText android:id="@+id/etReplace" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:background="#0F0808" android:textColor="#FF80AB" android:textColorHint="#5C3A3A" android:hint="Replace..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
+                <EditText android:id="@+id/etSearch" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:background="#0F0808" android:textColor="#FF80AB" android:textColorHint="#5C3A3A" android:hint="Поиск..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
+                <EditText android:id="@+id/etReplace" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:background="#0F0808" android:textColor="#FF80AB" android:textColorHint="#5C3A3A" android:hint="Замена..." android:textSize="14sp" android:fontFamily="monospace" android:paddingStart="12dp" android:paddingEnd="12dp" android:maxLines="1" android:inputType="textNoSuggestions" />
             </LinearLayout>
             
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
                 <Button android:id="@+id/btnSearchPrev" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginEnd="2dp" android:text="&lt;" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="16sp" android:textStyle="bold" style="?android:attr/borderlessButtonStyle" />
                 <Button android:id="@+id/btnSearchNext" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="2dp" android:layout_marginEnd="4dp" android:text="&gt;" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="16sp" android:textStyle="bold" style="?android:attr/borderlessButtonStyle" />
-                <Button android:id="@+id/btnReplaceOne" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="2" android:layout_marginEnd="2dp" android:text="ONE" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" style="?android:attr/borderlessButtonStyle" />
-                <Button android:id="@+id/btnReplaceAll" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="2" android:layout_marginStart="2dp" android:text="ALL" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" style="?android:attr/borderlessButtonStyle" />
+                <Button android:id="@+id/btnReplaceOne" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="2" android:layout_marginEnd="2dp" android:text="ОДНУ" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" style="?android:attr/borderlessButtonStyle" />
+                <Button android:id="@+id/btnReplaceAll" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="2" android:layout_marginStart="2dp" android:text="ВСЕ" android:textColor="#FF80AB" android:backgroundTint="#1A0F0F" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" style="?android:attr/borderlessButtonStyle" />
             </LinearLayout>
         </LinearLayout>
 
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#3D1A1A" />
 
-        <!-- 4. STATUS BAR -->
+        <!-- 4. СТРОКА СОСТОЯНИЯ -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="32dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="#1A0F0F" android:paddingStart="16dp" android:paddingEnd="16dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="UTF-8" android:textColor="#FF80AB" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" />
             <View android:layout_width="1dp" android:layout_height="12dp" android:background="#3D1A1A" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ROWAN VM" android:textColor="#FF80AB" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" />
             <View android:layout_width="1dp" android:layout_height="12dp" android:background="#3D1A1A" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ready" android:textColor="#FF80AB" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Готов" android:textColor="#FF80AB" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" />
             <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="v1.0.0" android:textColor="#FF80AB" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.05" />
         </LinearLayout>
@@ -148,11 +148,10 @@
         <LinearLayout android:id="@+id/overlayResult" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center" android:background="#1A0F0F" android:orientation="vertical" android:padding="24dp" android:visibility="gone" android:elevation="16dp" android:outlineProvider="background" android:clipToOutline="true">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="16dp">
                 <View android:layout_width="4dp" android:layout_height="20dp" android:background="#FF4081" android:layout_marginEnd="12dp" />
-                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="EXECUTION RESULT" android:textColor="#FF4081" android:textStyle="bold" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" android:textAllCaps="true" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OUTPUT" android:textColor="#FFAB40" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.1" />
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="РЕЗУЛЬТАТ ВЫПОЛНЕНИЯ" android:textColor="#FF4081" android:textStyle="bold" android:fontFamily="monospace" android:textSize="13sp" android:letterSpacing="0.1" android:textAllCaps="true" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ВЫВОД" android:textColor="#FFAB40" android:fontFamily="monospace" android:textSize="10sp" android:letterSpacing="0.1" />
             </LinearLayout>
             
-            <!-- ИСПРАВЛЕНО: убран android:scrollbarThumbVertical="#FF5252", так как он требует drawable, а не hex-цвет -->
             <TextView 
                 android:id="@+id/tvResultContent" 
                 android:layout_width="match_parent" 
@@ -172,9 +171,9 @@
                 android:textIsSelectable="true" />
                 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="20dp">
-                <Button android:id="@+id/btnCopyResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Copy" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                <Button android:id="@+id/btnExpandResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Expand" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
-                <Button android:id="@+id/btnCloseResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:text="Close" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnCopyResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Копировать" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnExpandResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Развернуть" android:textColor="#FF80AB" android:backgroundTint="#2A1520" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
+                <Button android:id="@+id/btnCloseResult" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:text="Закрыть" android:textColor="#FF5252" android:backgroundTint="#3D1A1A" android:fontFamily="monospace" android:textSize="12sp" android:textAllCaps="false" android:letterSpacing="0.05" style="?android:attr/borderlessButtonStyle" android:stateListAnimator="@null" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
