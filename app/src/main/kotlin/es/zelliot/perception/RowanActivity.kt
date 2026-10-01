@@ -98,21 +98,19 @@ class RowanActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        // ДОБАВЛЕНО: Защита от случайного нажатия Clear
         binding.btnClear.setOnClickListener { 
             if (binding.etScript.text.isNotEmpty()) {
-                binding.etScript.text.clear()
-                currentFileUri = null
-                showToast("Cleared")
+                showClearConfirmationDialog()
             }
         }
         binding.btnExecute.setOnClickListener { executeScript(binding.etScript.text.toString()) }
         binding.btnStop.setOnClickListener {
             activityScope.coroutineContext[Job]?.cancelChildren()
-            showToast("Stopped")
+            showToast("Остановлено")
         }
         binding.btnOpen.setOnClickListener { openFileLauncher.launch(arrayOf("*/*", "text/plain")) }
         
-        // Переход в About Activity
         binding.btnAbout.setOnClickListener { 
             startActivity(Intent(this, RWInfActivity::class.java)) 
         }
@@ -120,12 +118,26 @@ class RowanActivity : AppCompatActivity() {
         binding.btnExit.setOnClickListener { showExitConfirmationDialog() }
     }
     
+    // ДОБАВЛЕНО: Диалог подтверждения очистки
+    private fun showClearConfirmationDialog() {
+        AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert))
+            .setTitle("Очистить редактор?")
+            .setMessage("Весь текущий код будет удален. Продолжить?")
+            .setPositiveButton("ДА") { _, _ -> 
+                binding.etScript.text.clear()
+                currentFileUri = null
+                showToast("Очищено")
+            }
+            .setNegativeButton("НЕТ", null)
+            .show()
+    }
+
     private fun showExitConfirmationDialog() {
         AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert))
-            .setTitle("Exit Rowan?")
-            .setMessage("Terminate the engine?")
-            .setPositiveButton("YES") { _, _ -> finishAffinity(); kotlin.system.exitProcess(0) }
-            .setNegativeButton("NO", null)
+            .setTitle("Выйти из Rowan?")
+            .setMessage("Завершить работу движка?")
+            .setPositiveButton("ДА") { _, _ -> finishAffinity(); kotlin.system.exitProcess(0) }
+            .setNegativeButton("НЕТ", null)
             .show()
     }
 
@@ -135,7 +147,7 @@ class RowanActivity : AppCompatActivity() {
         binding.btnCopyResult.setOnClickListener {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("rowan_result", binding.tvResultContent.text.toString()))
-            showToast("Copied")
+            showToast("Скопировано")
         }
         binding.btnExpandResult.setOnClickListener {
             if (isResultExpanded) collapseResult() else expandResult()
@@ -156,13 +168,9 @@ class RowanActivity : AppCompatActivity() {
     private fun applyResultSyntax(text: String): Spannable {
         val spannable = android.text.SpannableString(text)
         
-        // ИЗМЕНЕНО: Базовый цвет текста результата - мягкий розовый (Soft Pink)
-        // Отлично читается на фоне #0F0808 и гармонично сочетается с общей темой
         spannable.setSpan(ForegroundColorSpan(Color.parseColor("#FFB6C1")), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         
-        // Успех/Позитив - Теплый оранжевый
         val successColor = Color.parseColor("#FFAB40")
-        // Ошибка/Негатив - Ярко-красный
         val errorColor = Color.parseColor("#FF5252")
         
         listOf(Regex("\\bSuccess\\b", RegexOption.IGNORE_CASE), Regex("\\bOK\\b", RegexOption.IGNORE_CASE), Regex("\\b✅\\b"), Regex("\\bУСПЕХ\\b", RegexOption.IGNORE_CASE)).forEach { pattern ->
@@ -191,7 +199,7 @@ class RowanActivity : AppCompatActivity() {
         params.width = FrameLayout.LayoutParams.MATCH_PARENT; params.height = FrameLayout.LayoutParams.MATCH_PARENT; params.gravity = android.view.Gravity.NO_GRAVITY
         binding.overlayResult.layoutParams = params
         binding.tvResultContent.maxHeight = Int.MAX_VALUE
-        binding.btnExpandResult.text = "Collapse"; isResultExpanded = true
+        binding.btnExpandResult.text = "Свернуть"; isResultExpanded = true
     }
     
     private fun collapseResult() {
@@ -201,7 +209,7 @@ class RowanActivity : AppCompatActivity() {
         params.width = FrameLayout.LayoutParams.MATCH_PARENT; params.height = FrameLayout.LayoutParams.WRAP_CONTENT; params.gravity = android.view.Gravity.CENTER
         binding.overlayResult.layoutParams = params
         binding.tvResultContent.maxHeight = savedMaxHeight
-        binding.btnExpandResult.text = "Expand"; isResultExpanded = false
+        binding.btnExpandResult.text = "Развернуть"; isResultExpanded = false
     }
 
     private fun loadFileContent(uri: Uri) {
@@ -209,8 +217,8 @@ class RowanActivity : AppCompatActivity() {
             val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return
             currentFileUri = uri
             binding.etScript.setText(content)
-            showToast("File loaded")
-        } catch (e: Exception) { showToast("Error: ${e.message}") }
+            showToast("Файл загружен")
+        } catch (e: Exception) { showToast("Ошибка: ${e.message}") }
     }
 
     private fun executeScript(script: String) {
@@ -221,8 +229,8 @@ class RowanActivity : AppCompatActivity() {
                     withTimeout(5000) { RowanEngine.evaluate(script.trim()) }
                 }
                 showResult(result)
-            } catch (e: TimeoutCancellationException) { showResult("Error: Execution timeout (>5s)") }
-            catch (e: Exception) { showResult("Error: ${e.message ?: "Unknown"}") }
+            } catch (e: TimeoutCancellationException) { showResult("Ошибка: Превышено время выполнения (>5с)") }
+            catch (e: Exception) { showResult("Ошибка: ${e.message ?: "Неизвестно"}") }
         }
     }
 
@@ -290,13 +298,12 @@ class RowanActivity : AppCompatActivity() {
     }
 
     private class RowanHighlighter(private val editText: EditText, private val lifecycle: androidx.lifecycle.Lifecycle) : TextWatcher {
-        // ПАЛИТРА: Розово-красно-оранжевая (Magma / Cyber-Warm)
-        private val colorKeyword = Color.parseColor("#FF4081")    // Hot Pink
-        private val colorString = Color.parseColor("#FFAB40")     // Warm Orange
-        private val colorComment = Color.parseColor("#7A5C5C")    // Muted Red-Gray
-        private val colorNumber = Color.parseColor("#FF6E40")     // Bright Orange
-        private val colorFunction = Color.parseColor("#FF80AB")   // Light Pink
-        private val colorOperator = Color.parseColor("#FF5252")   // Red
+        private val colorKeyword = Color.parseColor("#FF4081")
+        private val colorString = Color.parseColor("#FFAB40")
+        private val colorComment = Color.parseColor("#7A5C5C")
+        private val colorNumber = Color.parseColor("#FF6E40")
+        private val colorFunction = Color.parseColor("#FF80AB")
+        private val colorOperator = Color.parseColor("#FF5252")
 
         private val stringPattern = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\")")
         private val commentPattern = Pattern.compile("(#.*)")
